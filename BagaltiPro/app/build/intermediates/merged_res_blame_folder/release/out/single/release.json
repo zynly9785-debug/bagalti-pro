@@ -1,0 +1,98 @@
+[
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_activity_register.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/activity_register.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_activity_add_product.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/activity_add_product.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_dialog_owner_auth.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/dialog_owner_auth.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_activity_customers.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/activity_customers.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_activity_main.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/activity_main.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_dialog_activate_store.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/dialog_activate_store.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_activity_settings.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/activity_settings.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/drawable_ic_grocery_store.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/drawable/ic_grocery_store.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/drawable_bg_icon_button.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/drawable/bg_icon_button.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_activity_statement.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/activity_statement.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_activity_owner.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/activity_owner.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_activity_dashboard.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/activity_dashboard.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/drawable_ic_lock.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/drawable/ic_lock.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/drawable_ic_phone.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/drawable/ic_phone.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/drawable_bg_input_rounded.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/drawable/bg_input_rounded.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_activity_inventory.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/activity_inventory.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_dialog_edit_product.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/dialog_edit_product.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_activity_returns.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/activity_returns.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_activity_login.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/activity_login.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/layout_activity_pos.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/layout/activity_pos.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/menu_bottom_nav_menu.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/menu/bottom_nav_menu.xml"
+    },
+    {
+        "merged": "/workspaces/bagalti-pro/BagaltiPro/app/build/intermediates/res/merged/release/drawable_ic_barcode_scanner.xml.flat",
+        "source": "/workspaces/bagalti-pro/BagaltiPro/app/src/main/res/drawable/ic_barcode_scanner.xml"
+    }
+]

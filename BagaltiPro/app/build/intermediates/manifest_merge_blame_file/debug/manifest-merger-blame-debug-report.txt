@@ -1,0 +1,217 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.grocery.pos"
+4    android:versionCode="1"
+5    android:versionName="1.0.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="23"
+8-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml
+9        android:targetSdkVersion="34" />
+9-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml
+10
+11    <!-- صلاحيات التطبيق الأساسية -->
+12    <uses-permission android:name="android.permission.CAMERA" />
+12-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:6:5-64
+12-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:6:22-62
+13    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+13-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:7:5-71
+13-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:7:22-69
+14    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+14-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:8:5-80
+14-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:8:22-78
+15    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+15-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:9:5-79
+15-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:9:22-77
+16
+17    <!-- suppress DeprecatedClassUsageInspection -->
+18    <uses-permission android:name="android.permission.USE_FINGERPRINT" /> <!-- Don't require camera, as this requires a rear camera. This allows it to work on the Nexus 7 -->
+18-->[androidx.biometric:biometric:1.1.0] /home/codespace/.gradle/caches/transforms-3/fa2e4ddc01061b94925b619d2d7001d2/transformed/biometric-1.1.0/AndroidManifest.xml:27:5-74
+18-->[androidx.biometric:biometric:1.1.0] /home/codespace/.gradle/caches/transforms-3/fa2e4ddc01061b94925b619d2d7001d2/transformed/biometric-1.1.0/AndroidManifest.xml:27:22-71
+19    <uses-feature
+19-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:25:5-27:36
+20        android:name="android.hardware.camera"
+20-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:26:9-47
+21        android:required="false" />
+21-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:27:9-33
+22    <uses-feature
+22-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:28:5-30:36
+23        android:name="android.hardware.camera.front"
+23-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:29:9-53
+24        android:required="false" /> <!-- TODO replace above two with next line after Android 4.2 -->
+24-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:30:9-33
+25    <!-- <uses-feature android:name="android.hardware.camera.any"/> -->
+26    <uses-feature
+26-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:33:5-35:36
+27        android:name="android.hardware.camera.autofocus"
+27-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:34:9-57
+28        android:required="false" />
+28-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:35:9-33
+29    <uses-feature
+29-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:36:5-38:36
+30        android:name="android.hardware.camera.flash"
+30-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:37:9-53
+31        android:required="false" />
+31-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:38:9-33
+32    <uses-feature
+32-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:39:5-41:36
+33        android:name="android.hardware.screen.landscape"
+33-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:40:9-57
+34        android:required="false" />
+34-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:41:9-33
+35    <uses-feature
+35-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:42:5-44:36
+36        android:name="android.hardware.wifi"
+36-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:43:9-45
+37        android:required="false" />
+37-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:44:9-33
+38
+39    <permission
+39-->[androidx.core:core:1.9.0] /home/codespace/.gradle/caches/transforms-3/05812658e5f18ceaa49d389a06afe684/transformed/core-1.9.0/AndroidManifest.xml:22:5-24:47
+40        android:name="com.grocery.pos.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+40-->[androidx.core:core:1.9.0] /home/codespace/.gradle/caches/transforms-3/05812658e5f18ceaa49d389a06afe684/transformed/core-1.9.0/AndroidManifest.xml:23:9-81
+41        android:protectionLevel="signature" />
+41-->[androidx.core:core:1.9.0] /home/codespace/.gradle/caches/transforms-3/05812658e5f18ceaa49d389a06afe684/transformed/core-1.9.0/AndroidManifest.xml:24:9-44
+42
+43    <uses-permission android:name="com.grocery.pos.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+43-->[androidx.core:core:1.9.0] /home/codespace/.gradle/caches/transforms-3/05812658e5f18ceaa49d389a06afe684/transformed/core-1.9.0/AndroidManifest.xml:26:5-97
+43-->[androidx.core:core:1.9.0] /home/codespace/.gradle/caches/transforms-3/05812658e5f18ceaa49d389a06afe684/transformed/core-1.9.0/AndroidManifest.xml:26:22-94
+44
+45    <application
+45-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:11:5-41:19
+46        android:allowBackup="true"
+46-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:12:9-35
+47        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+47-->[androidx.core:core:1.9.0] /home/codespace/.gradle/caches/transforms-3/05812658e5f18ceaa49d389a06afe684/transformed/core-1.9.0/AndroidManifest.xml:28:18-86
+48        android:debuggable="true"
+49        android:extractNativeLibs="false"
+50        android:icon="@mipmap/ic_launcher"
+50-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:13:9-43
+51        android:label="@string/app_name"
+51-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:14:9-41
+52        android:roundIcon="@mipmap/ic_launcher_round"
+52-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:15:9-54
+53        android:supportsRtl="true"
+53-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:16:9-35
+54        android:theme="@style/Theme.GroceryPOS" >
+54-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:17:9-48
+55
+56        <!-- شاشة تسجيل الدخول كواجهة رئيسية أولى عند فتح التطبيق -->
+57        <activity
+57-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:20:9-27:20
+58            android:name="com.grocery.pos.LoginActivity"
+58-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:21:13-42
+59            android:exported="true" >
+59-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:22:13-36
+60            <intent-filter>
+60-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:23:13-26:29
+61                <action android:name="android.intent.action.MAIN" />
+61-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:24:17-68
+61-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:24:25-66
+62
+63                <category android:name="android.intent.category.LAUNCHER" />
+63-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:25:17-76
+63-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:25:27-74
+64            </intent-filter>
+65        </activity>
+66
+67        <!-- باقي شاشات وأنشطة التطبيق الحقيقية -->
+68        <activity
+68-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:30:9-78
+69            android:name="com.grocery.pos.RegisterActivity"
+69-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:30:19-51
+70            android:exported="false" />
+70-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:30:52-76
+71        <activity
+71-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:31:9-79
+72            android:name="com.grocery.pos.DashboardActivity"
+72-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:31:19-52
+73            android:exported="false" />
+73-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:31:53-77
+74        <activity
+74-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:32:9-73
+75            android:name="com.grocery.pos.PosActivity"
+75-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:32:19-46
+76            android:exported="false" />
+76-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:32:47-71
+77        <activity
+77-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:33:9-79
+78            android:name="com.grocery.pos.InventoryActivity"
+78-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:33:19-52
+79            android:exported="false" />
+79-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:33:53-77
+80        <activity
+80-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:34:9-80
+81            android:name="com.grocery.pos.AddProductActivity"
+81-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:34:19-53
+82            android:exported="false" />
+82-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:34:54-78
+83        <activity
+83-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:35:9-79
+84            android:name="com.grocery.pos.CustomersActivity"
+84-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:35:19-52
+85            android:exported="false" />
+85-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:35:53-77
+86        <activity
+86-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:36:9-79
+87            android:name="com.grocery.pos.StatementActivity"
+87-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:36:19-52
+88            android:exported="false" />
+88-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:36:53-77
+89        <activity
+89-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:37:9-77
+90            android:name="com.grocery.pos.ReturnsActivity"
+90-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:37:19-50
+91            android:exported="false" />
+91-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:37:51-75
+92        <activity
+92-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:38:9-78
+93            android:name="com.grocery.pos.SettingsActivity"
+93-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:38:19-51
+94            android:exported="false" />
+94-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:38:52-76
+95        <activity
+95-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:39:9-75
+96            android:name="com.grocery.pos.OwnerActivity"
+96-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:39:19-48
+97            android:exported="false" />
+97-->/workspaces/bagalti-pro/BagaltiPro/app/src/main/AndroidManifest.xml:39:49-73
+98        <activity
+98-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:47:9-53:63
+99            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+99-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:48:13-74
+100            android:clearTaskOnLaunch="true"
+100-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:49:13-45
+101            android:screenOrientation="sensorLandscape"
+101-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:50:13-56
+102            android:stateNotNeeded="true"
+102-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:51:13-42
+103            android:theme="@style/zxing_CaptureTheme"
+103-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:52:13-54
+104            android:windowSoftInputMode="stateAlwaysHidden" />
+104-->[com.journeyapps:zxing-android-embedded:4.3.0] /home/codespace/.gradle/caches/transforms-3/f81ee3f9f4619c7e4ba421aedaded583/transformed/zxing-android-embedded-4.3.0/AndroidManifest.xml:53:13-60
+105
+106        <provider
+106-->[androidx.emoji2:emoji2:1.2.0] /home/codespace/.gradle/caches/transforms-3/0ef24d87dee2b08f7572f14d668d5494/transformed/emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
+107            android:name="androidx.startup.InitializationProvider"
+107-->[androidx.emoji2:emoji2:1.2.0] /home/codespace/.gradle/caches/transforms-3/0ef24d87dee2b08f7572f14d668d5494/transformed/emoji2-1.2.0/AndroidManifest.xml:25:13-67
+108            android:authorities="com.grocery.pos.androidx-startup"
+108-->[androidx.emoji2:emoji2:1.2.0] /home/codespace/.gradle/caches/transforms-3/0ef24d87dee2b08f7572f14d668d5494/transformed/emoji2-1.2.0/AndroidManifest.xml:26:13-68
+109            android:exported="false" >
+109-->[androidx.emoji2:emoji2:1.2.0] /home/codespace/.gradle/caches/transforms-3/0ef24d87dee2b08f7572f14d668d5494/transformed/emoji2-1.2.0/AndroidManifest.xml:27:13-37
+110            <meta-data
+110-->[androidx.emoji2:emoji2:1.2.0] /home/codespace/.gradle/caches/transforms-3/0ef24d87dee2b08f7572f14d668d5494/transformed/emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
+111                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+111-->[androidx.emoji2:emoji2:1.2.0] /home/codespace/.gradle/caches/transforms-3/0ef24d87dee2b08f7572f14d668d5494/transformed/emoji2-1.2.0/AndroidManifest.xml:30:17-75
+112                android:value="androidx.startup" />
+112-->[androidx.emoji2:emoji2:1.2.0] /home/codespace/.gradle/caches/transforms-3/0ef24d87dee2b08f7572f14d668d5494/transformed/emoji2-1.2.0/AndroidManifest.xml:31:17-49
+113            <meta-data
+113-->[androidx.lifecycle:lifecycle-process:2.4.1] /home/codespace/.gradle/caches/transforms-3/1935f4ac045f7d84b2147a08dac8d502/transformed/lifecycle-process-2.4.1/AndroidManifest.xml:31:13-33:52
+114                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+114-->[androidx.lifecycle:lifecycle-process:2.4.1] /home/codespace/.gradle/caches/transforms-3/1935f4ac045f7d84b2147a08dac8d502/transformed/lifecycle-process-2.4.1/AndroidManifest.xml:32:17-78
+115                android:value="androidx.startup" />
+115-->[androidx.lifecycle:lifecycle-process:2.4.1] /home/codespace/.gradle/caches/transforms-3/1935f4ac045f7d84b2147a08dac8d502/transformed/lifecycle-process-2.4.1/AndroidManifest.xml:33:17-49
+116        </provider>
+117    </application>
+118
+119</manifest>

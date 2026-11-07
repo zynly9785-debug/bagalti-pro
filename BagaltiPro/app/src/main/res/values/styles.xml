@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+<style name="Theme.GroceryPOS" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+<item name="colorPrimary">@color/primary_emerald</item><item name="colorPrimaryVariant">@color/primary_dark</item><item name="colorSecondary">@color/secondary_gold</item><item name="android:fontFamily">sans</item><item name="android:windowLightStatusBar">false</item><item name="android:statusBarColor">@color/primary_dark</item><item name="android:navigationBarColor">@color/primary_dark</item><item name="android:windowBackground">@color/background_ivory</item>
+</style>
+</resources>

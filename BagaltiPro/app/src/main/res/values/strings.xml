@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">بقالتي برو</string>
+    <string name="login_title">تسجيل الدخول</string>
+    <string name="phone_number">رقم الهاتف</string>
+    <string name="password">كلمة المرور</string>
+    <string name="btn_login">دخول</string>
+    <string name="new_account">إنشاء حساب بقالة جديد</string>
+    <string name="register_title">إنشاء حساب متجر</string>
+    <string name="store_name">اسم البقالة / المتجر</string>
+    <string name="owner_name">اسم المالك</string>
+    <string name="governorate">المحافظة</string>
+    <string name="district">المديرية</string>
+    <string name="neighborhood">الحارة / الشارع</string>
+    <string name="pos_title">نقطة البيع السريعة</string>
+    <string name="inventory_title">إدارة المخزون</string>
+    <string name="customers_title">العملاء والحسابات</string>
+    <string name="returns_title">المرتجعات</string>
+    <string name="settings_title">الإعدادات والنسخ</string>
+    <string name="currency_symbol">ر.ي</string>
+</resources>

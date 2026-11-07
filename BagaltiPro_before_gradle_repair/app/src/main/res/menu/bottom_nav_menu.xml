@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+<item android:id="@+id/nav_home" android:title="الرئيسية" android:icon="@drawable/ic_grocery_store"/>
+<item android:id="@+id/nav_pos" android:title="المبيعات" android:icon="@drawable/ic_barcode_scanner"/>
+<item android:id="@+id/nav_inventory" android:title="المخزون" android:icon="@drawable/ic_grocery_store"/>
+<item android:id="@+id/nav_customers" android:title="العملاء" android:icon="@drawable/ic_phone"/>
+<item android:id="@+id/nav_settings" android:title="الإعدادات" android:icon="@drawable/ic_lock"/>
+</menu>
