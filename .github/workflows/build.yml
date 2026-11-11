@@ -20,12 +20,14 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Build Android App
+    - name: Auto Clean and Build Android App
       run: |
-        # البحث عن المجلد الذي يحتوي على ملف build.gradle أو gradlew
-        PROJECT_DIR=$(find . -name "build.gradle" -not -path "*/.*" -exec dirname {} \; | head -n 1)
-        echo "Found project directory: $PROJECT_DIR"
-        cd "$PROJECT_DIR"
+        echo "=== التنظيف التلقائي وترتيب المجلدات ==="
+        # حذف أي مجلدات نسخ احتياطي قديمة تلقائياً من الجذر لتجنب تداخل مسارات البناء
+        rm -rf BagaltiPro/build_backup_* || true
+        
+        # الانتقال التلقائي لمجلد المشروع
+        cd BagaltiPro
         
         if [ -f "./gradlew" ]; then
           chmod +x ./gradlew
