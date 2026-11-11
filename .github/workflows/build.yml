@@ -14,19 +14,17 @@ jobs:
     - name: Checkout the code
       uses: actions/checkout@v4
 
-    - name: Set up JDK 17
+    - name: Set up JDK 11
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: '17'
+        java-version: '11'
 
     - name: Auto Clean and Build Android App
       run: |
         echo "=== التنظيف التلقائي وترتيب المجلدات ==="
-        # حذف أي مجلدات نسخ احتياطي قديمة تلقائياً من الجذر لتجنب تداخل مسارات البناء
         rm -rf BagaltiPro/build_backup_* || true
         
-        # الانتقال التلقائي لمجلد المشروع
         cd BagaltiPro
         
         if [ -f "./gradlew" ]; then
