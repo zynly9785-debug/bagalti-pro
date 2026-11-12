@@ -1,2 +1,2 @@
 # bagalti-pro
-mkdir -p /sdcard/DCIM/BagaltiPro
+mkdir -p /sdcard/Download/Bagalti-Pro
