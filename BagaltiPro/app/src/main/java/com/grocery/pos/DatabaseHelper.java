@@ -16,7 +16,7 @@ import java.util.List;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "grocery_pos.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2;
 
     // أسماء الجداول
     public static final String TABLE_USERS = "users";
@@ -26,6 +26,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String TABLE_SALE_ITEMS = "sale_items";
     public static final String TABLE_RETURNS = "returns";
     public static final String TABLE_PACKAGES = "subscription_packages";
+    public static final String TABLE_EXPENSES = "expenses";
 
     public DatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -91,7 +92,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 "sale_id INTEGER NOT NULL, " +
                 "product_id INTEGER NOT NULL, " +
                 "qty REAL NOT NULL, " +
-                "price REAL NOT NULL" +
+                "price REAL NOT NULL, " +
+                "cost_price REAL NOT NULL DEFAULT 0" +
                 ");";
 
         // 6. جدول المرتجعات
@@ -124,40 +126,46 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL(createSaleItems);
         db.execSQL(createReturns);
         db.execSQL(createPackages);
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_EXPENSES + " (id INTEGER PRIMARY KEY AUTOINCREMENT, store_id INTEGER NOT NULL, category TEXT NOT NULL, amount REAL NOT NULL, note TEXT, created_at TEXT NOT NULL)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS inventory_movements (id INTEGER PRIMARY KEY AUTOINCREMENT, store_id INTEGER NOT NULL, product_id INTEGER NOT NULL, qty_delta REAL NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS customer_payments (id INTEGER PRIMARY KEY AUTOINCREMENT, store_id INTEGER NOT NULL, customer_id INTEGER NOT NULL, amount REAL NOT NULL, method TEXT, note TEXT, created_at TEXT NOT NULL)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS payment_allocations (id INTEGER PRIMARY KEY AUTOINCREMENT, payment_id INTEGER NOT NULL, sale_id INTEGER NOT NULL, amount REAL NOT NULL)");
 
-        // إدراج باقات افتراضية قابلة للتعديل والزيادة
-        db.execSQL("INSERT INTO " + TABLE_PACKAGES + " (name, duration_days, price, description) VALUES ('باقة شهرية أساسية', 30, 5000, 'اشتراك كامل لمدة 30 يوم');");
-        db.execSQL("INSERT INTO " + TABLE_PACKAGES + " (name, duration_days, price, description) VALUES ('باقة 3 أشهر الفضية', 90, 13500, 'اشتراك ربع سنوي مخفض');");
-        db.execSQL("INSERT INTO " + TABLE_PACKAGES + " (name, duration_days, price, description) VALUES ('باقة سنوية ذهبية', 365, 45000, 'اشتراك سنوي كامل ومميز');");
+        // لا تُنشأ أسعار افتراضية؛ يحدد مالك التطبيق الباقات وسياسة الدفع لاحقاً.
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_PACKAGES);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_ITEMS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_RETURNS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALES);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_PRODUCTS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_CUSTOMERS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_USERS);
-        onCreate(db);
+        // ترقيات تحفظ بيانات المتاجر القائمة؛ لا تحذف الجداول المالية عند تحديث التطبيق.
+        if (oldVersion < 2) {
+            try { db.execSQL("ALTER TABLE " + TABLE_SALE_ITEMS + " ADD COLUMN cost_price REAL NOT NULL DEFAULT 0"); }
+            catch (Exception ignored) { }
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_EXPENSES + " (id INTEGER PRIMARY KEY AUTOINCREMENT, store_id INTEGER NOT NULL, category TEXT NOT NULL, amount REAL NOT NULL, note TEXT, created_at TEXT NOT NULL)");
+            db.execSQL("CREATE TABLE IF NOT EXISTS inventory_movements (id INTEGER PRIMARY KEY AUTOINCREMENT, store_id INTEGER NOT NULL, product_id INTEGER NOT NULL, qty_delta REAL NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL)");
+            db.execSQL("CREATE TABLE IF NOT EXISTS customer_payments (id INTEGER PRIMARY KEY AUTOINCREMENT, store_id INTEGER NOT NULL, customer_id INTEGER NOT NULL, amount REAL NOT NULL, method TEXT, note TEXT, created_at TEXT NOT NULL)");
+            db.execSQL("CREATE TABLE IF NOT EXISTS payment_allocations (id INTEGER PRIMARY KEY AUTOINCREMENT, payment_id INTEGER NOT NULL, sale_id INTEGER NOT NULL, amount REAL NOT NULL)");
+        }
     }
 
     // ==========================================
     // دوال المستخدمين (المتاجر)
     // ==========================================
     public long registerUser(String storeName, String ownerName, String phone, String password,
-                             String gov, String district, String neighborhood) {
+                             String pin, String gov, String district, String neighborhood) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues cv = new ContentValues();
         cv.put("store_name", storeName);
         cv.put("owner_name", ownerName);
         cv.put("phone", phone);
-        cv.put("password", password);
+        try {
+            cv.put("password", PasswordSecurity.hash(password));
+        } catch (Exception e) {
+            return -1;
+        }
         cv.put("governorate", gov);
         cv.put("district", district);
         cv.put("neighborhood", neighborhood);
-        cv.put("pin_code", "1234");
+        cv.put("pin_code", pin);
         // اشتراك تجريبي لمدة 60 يوم
         long subscriptionEnd = System.currentTimeMillis() + (60L * 24 * 60 * 60 * 1000);
         cv.put("subscription_end", subscriptionEnd);
@@ -167,10 +175,19 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return db.insert(TABLE_USERS, null, cv);
     }
 
-    public Cursor getUserByPhoneAndPassword(String phone, String password) {
+    public Cursor getUserByPhone(String phone) {
         SQLiteDatabase db = this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_USERS + " WHERE phone = ? AND password = ?",
-                new String[]{phone, password});
+        return db.rawQuery("SELECT * FROM " + TABLE_USERS + " WHERE phone = ? LIMIT 1",
+                new String[]{phone});
+    }
+
+    /** Upgrade legacy plaintext only after a successful constant-time comparison. */
+    public boolean upgradeLegacyPassword(int userId, String legacyPassword, String newHash) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("password", newHash);
+        return db.update(TABLE_USERS, values, "id = ? AND password = ?",
+                new String[]{String.valueOf(userId), legacyPassword}) == 1;
     }
 
     // ==========================================
@@ -212,14 +229,27 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     public boolean updateProduct(int storeId, int productId, double salePrice, double costPrice, double quantity) {
+        if (storeId <= 0 || salePrice < 0 || costPrice < 0 || quantity < 0 ||
+                Double.isNaN(salePrice) || Double.isInfinite(salePrice) || Double.isNaN(costPrice) || Double.isInfinite(costPrice) || Double.isNaN(quantity) || Double.isInfinite(quantity)) return false;
         SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("sale_price", salePrice);
-        cv.put("cost_price", costPrice);
-        cv.put("quantity", quantity);
-        int rows = db.update(TABLE_PRODUCTS, cv, "id = ? AND store_id = ?",
-                new String[]{String.valueOf(productId), String.valueOf(storeId)});
-        return rows > 0;
+        Cursor c = null; db.beginTransaction();
+        try {
+            c = db.rawQuery("SELECT quantity FROM " + TABLE_PRODUCTS + " WHERE id = ? AND store_id = ? LIMIT 1",
+                    new String[]{String.valueOf(productId), String.valueOf(storeId)});
+            if (!c.moveToFirst()) return false;
+            double oldQuantity = c.getDouble(0); c.close(); c = null;
+            ContentValues cv = new ContentValues(); cv.put("sale_price", salePrice); cv.put("cost_price", costPrice); cv.put("quantity", quantity);
+            if (db.update(TABLE_PRODUCTS, cv, "id = ? AND store_id = ?", new String[]{String.valueOf(productId), String.valueOf(storeId)}) != 1) return false;
+            double delta = quantity - oldQuantity;
+            if (Math.abs(delta) > 0.000001d) {
+                ContentValues movement = new ContentValues(); movement.put("store_id", storeId); movement.put("product_id", productId);
+                movement.put("qty_delta", delta); movement.put("reason", "manual_adjustment");
+                movement.put("created_at", new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(new java.util.Date()));
+                db.insert("inventory_movements", null, movement);
+            }
+            db.setTransactionSuccessful(); return true;
+        } catch (Exception e) { return false; }
+        finally { if (c != null) c.close(); db.endTransaction(); }
     }
 
     public boolean softDeleteProduct(int storeId, int productId) {
@@ -248,6 +278,48 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         cv.put("phone", phone);
         cv.put("total_debt", initialDebt);
         return db.insert(TABLE_CUSTOMERS, null, cv);
+    }
+
+    /** Records a customer payment and updates its balance atomically; rejects overpayment. */
+    public boolean recordCustomerPayment(int storeId, int customerId, double amount, String method, String note, String createdAt) {
+        if (amount <= 0 || Double.isNaN(amount) || Double.isInfinite(amount)) return false;
+        SQLiteDatabase db = getWritableDatabase();
+        Cursor c = null; db.beginTransaction();
+        try {
+            c = db.rawQuery("SELECT total_debt FROM " + TABLE_CUSTOMERS + " WHERE id = ? AND store_id = ? LIMIT 1",
+                    new String[]{String.valueOf(customerId), String.valueOf(storeId)});
+            if (!c.moveToFirst() || amount > c.getDouble(0) + 0.000001d) return false;
+            double balance = c.getDouble(0) - amount; c.close(); c = null;
+            ContentValues update = new ContentValues(); update.put("total_debt", Math.max(0, balance));
+            if (db.update(TABLE_CUSTOMERS, update, "id = ? AND store_id = ?", new String[]{String.valueOf(customerId), String.valueOf(storeId)}) != 1) return false;
+            ContentValues payment = new ContentValues(); payment.put("store_id", storeId); payment.put("customer_id", customerId);
+            payment.put("amount", amount); payment.put("method", method); payment.put("note", note); payment.put("created_at", createdAt);
+            long paymentId = db.insert("customer_payments", null, payment);
+            if (paymentId < 0) return false;
+            java.util.ArrayList<Long> saleIds = new java.util.ArrayList<>();
+            java.util.ArrayList<Double> saleBalances = new java.util.ArrayList<>();
+            java.util.ArrayList<Double> salePaid = new java.util.ArrayList<>();
+            Cursor sales = db.rawQuery("SELECT id, paid_amount, remaining_amount FROM " + TABLE_SALES +
+                    " WHERE store_id = ? AND customer_id = ? AND remaining_amount > 0 ORDER BY id ASC",
+                    new String[]{String.valueOf(storeId), String.valueOf(customerId)});
+            while (sales.moveToNext()) { saleIds.add(sales.getLong(0)); salePaid.add(sales.getDouble(1)); saleBalances.add(sales.getDouble(2)); }
+            sales.close();
+            double toAllocate = amount;
+            for (int i = 0; i < saleIds.size() && toAllocate > 0.000001d; i++) {
+                double allocation = Math.min(toAllocate, saleBalances.get(i));
+                ContentValues saleUpdate = new ContentValues();
+                saleUpdate.put("paid_amount", salePaid.get(i) + allocation);
+                saleUpdate.put("remaining_amount", Math.max(0, saleBalances.get(i) - allocation));
+                if (db.update(TABLE_SALES, saleUpdate, "id = ? AND store_id = ? AND customer_id = ?",
+                        new String[]{String.valueOf(saleIds.get(i)), String.valueOf(storeId), String.valueOf(customerId)}) != 1) return false;
+                ContentValues allocationRow = new ContentValues(); allocationRow.put("payment_id", paymentId);
+                allocationRow.put("sale_id", saleIds.get(i)); allocationRow.put("amount", allocation);
+                if (db.insert("payment_allocations", null, allocationRow) < 0) return false;
+                toAllocate -= allocation;
+            }
+            db.setTransactionSuccessful(); return true;
+        } catch (Exception e) { return false; }
+        finally { if (c != null) c.close(); db.endTransaction(); }
     }
 
     public void updateCustomerDebt(int storeId, int customerId, double debtDelta) {
@@ -287,6 +359,93 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 new Object[]{qty, productId});
     }
 
+    /** يسجل الفاتورة وبنودها وتغيير المخزون والدين ضمن معاملة واحدة. يعيد -1 عند الفشل. */
+    public long createSaleWithItems(int storeId, Integer customerId, double total, double paid,
+                                    double remaining, String paymentType, String createdAt,
+                                    List<PosActivity.CartItemModel> items) {
+        SQLiteDatabase db = getWritableDatabase();
+        long saleId = -1;
+        Cursor cursor = null;
+        db.beginTransaction();
+        try {
+            if (storeId <= 0 || items == null || items.isEmpty() || total <= 0 || paid < 0 || remaining < 0 ||
+                    paid > total || Math.abs((paid + remaining) - total) > 0.01d || (remaining > 0 && customerId == null))
+                throw new IllegalArgumentException("بيانات الفاتورة غير صالحة");
+            if (customerId != null) {
+                Cursor customerCheck = db.rawQuery("SELECT id FROM " + TABLE_CUSTOMERS + " WHERE id = ? AND store_id = ? LIMIT 1",
+                        new String[]{String.valueOf(customerId), String.valueOf(storeId)});
+                boolean found = customerCheck.moveToFirst(); customerCheck.close();
+                if (!found) throw new IllegalStateException("العميل غير موجود في هذا المتجر");
+            }
+            double expectedTotal = 0;
+            ContentValues sale = new ContentValues();
+            sale.put("store_id", storeId);
+            if (customerId != null) sale.put("customer_id", customerId);
+            sale.put("total_amount", total); sale.put("paid_amount", paid);
+            sale.put("remaining_amount", remaining); sale.put("payment_type", paymentType);
+            sale.put("created_at", createdAt);
+            saleId = db.insertOrThrow(TABLE_SALES, null, sale);
+            for (PosActivity.CartItemModel item : items) {
+                if (item.qty <= 0 || item.price < 0 || Double.isNaN(item.qty) || Double.isInfinite(item.qty) || Double.isNaN(item.price) || Double.isInfinite(item.price)) throw new IllegalArgumentException("كمية أو سعر غير صالح");
+                expectedTotal += item.qty * item.price;
+                cursor = db.rawQuery("SELECT quantity, cost_price FROM " + TABLE_PRODUCTS +
+                                " WHERE id = ? AND store_id = ? AND is_active = 1 LIMIT 1",
+                        new String[]{String.valueOf(item.productId), String.valueOf(storeId)});
+                if (!cursor.moveToFirst()) throw new IllegalStateException("المنتج غير موجود في هذا المتجر");
+                double stock = cursor.getDouble(0);
+                double cost = cursor.getDouble(1);
+                cursor.close(); cursor = null;
+                if (stock + 0.000001d < item.qty) throw new IllegalStateException("المخزون غير كافٍ للصنف: " + item.name);
+                ContentValues line = new ContentValues();
+                line.put("sale_id", saleId); line.put("product_id", item.productId);
+                line.put("qty", item.qty); line.put("price", item.price); line.put("cost_price", cost);
+                db.insertOrThrow(TABLE_SALE_ITEMS, null, line);
+                ContentValues productUpdate = new ContentValues();
+                productUpdate.put("quantity", stock - item.qty);
+                int changed = db.update(TABLE_PRODUCTS, productUpdate,
+                        "id = ? AND store_id = ? AND quantity >= ?",
+                        new String[]{String.valueOf(item.productId), String.valueOf(storeId), String.valueOf(item.qty)});
+                if (changed != 1) throw new IllegalStateException("تغير المخزون أثناء البيع؛ أعد المحاولة");
+                ContentValues movement = new ContentValues();
+                movement.put("store_id", storeId); movement.put("product_id", item.productId);
+                movement.put("qty_delta", -item.qty); movement.put("reason", "sale:" + saleId);
+                movement.put("created_at", createdAt); db.insert("inventory_movements", null, movement);
+            }
+            if (Math.abs(expectedTotal - total) > 0.01d) throw new IllegalStateException("إجمالي الأصناف لا يطابق إجمالي الفاتورة");
+            if (remaining > 0 && customerId != null) {
+                Cursor customer = db.rawQuery("SELECT total_debt FROM " + TABLE_CUSTOMERS + " WHERE id = ? AND store_id = ? LIMIT 1",
+                        new String[]{String.valueOf(customerId), String.valueOf(storeId)});
+                if (!customer.moveToFirst()) { customer.close(); throw new IllegalStateException("العميل غير موجود في هذا المتجر"); }
+                double newDebt = customer.getDouble(0) + remaining;
+                customer.close();
+                ContentValues debt = new ContentValues(); debt.put("total_debt", newDebt);
+                if (db.update(TABLE_CUSTOMERS, debt, "id = ? AND store_id = ?",
+                        new String[]{String.valueOf(customerId), String.valueOf(storeId)}) != 1)
+                    throw new IllegalStateException("تعذر تحديث دين العميل");
+            }
+            db.setTransactionSuccessful();
+        } catch (Exception e) {
+            saleId = -1;
+        } finally {
+            if (cursor != null) cursor.close();
+            db.endTransaction();
+        }
+        return saleId;
+    }
+
+    public long addExpense(int storeId, String category, double amount, String note, String createdAt) {
+        if (storeId <= 0 || amount <= 0 || Double.isNaN(amount) || Double.isInfinite(amount) || category == null || category.trim().isEmpty()) return -1;
+        ContentValues values = new ContentValues();
+        values.put("store_id", storeId); values.put("category", category.trim());
+        values.put("amount", amount); values.put("note", note); values.put("created_at", createdAt);
+        return getWritableDatabase().insert(TABLE_EXPENSES, null, values);
+    }
+
+    public Cursor getExpenses(int storeId) {
+        return getReadableDatabase().rawQuery("SELECT id, category, amount, note, created_at FROM " + TABLE_EXPENSES +
+                " WHERE store_id = ? ORDER BY id DESC", new String[]{String.valueOf(storeId)});
+    }
+
     public Cursor getSalesByStore(int storeId) {
         SQLiteDatabase db = this.getReadableDatabase();
         return db.rawQuery("SELECT * FROM " + TABLE_SALES + " WHERE store_id = ? ORDER BY id DESC",
@@ -304,27 +463,61 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     // ==========================================
     public long insertReturn(int storeId, Integer saleId, Integer customerId,
                              int productId, double qty, double amount, String type, String createdAt) {
+        if (storeId <= 0 || qty <= 0 || amount <= 0 || Double.isNaN(qty) || Double.isInfinite(qty) || Double.isNaN(amount) || Double.isInfinite(amount)) return -1;
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues cv = new ContentValues();
         cv.put("store_id", storeId);
         if (saleId != null) cv.put("sale_id", saleId);
         if (customerId != null) cv.put("customer_id", customerId);
-        cv.put("product_id", productId);
-        cv.put("qty", qty);
-        cv.put("amount", amount);
-        cv.put("type", type);
-        cv.put("created_at", createdAt);
-
-        // إعادة الكمية للمخزون
-        db.execSQL("UPDATE " + TABLE_PRODUCTS + " SET quantity = quantity + ? WHERE id = ? AND store_id = ?",
-                new Object[]{qty, productId, storeId});
-
-        // خصم من دين الزبون إذا كان مرتبطاً بعميل
-        if (customerId != null) {
-            updateCustomerDebt(storeId, customerId, -amount);
-        }
-
-        return db.insert(TABLE_RETURNS, null, cv);
+        cv.put("product_id", productId); cv.put("qty", qty); cv.put("amount", amount);
+        cv.put("type", type); cv.put("created_at", createdAt);
+        long id = -1; db.beginTransaction();
+        try {
+            if (saleId != null) {
+                Cursor invoice = db.rawQuery("SELECT id FROM " + TABLE_SALES + " WHERE id = ? AND store_id = ? LIMIT 1",
+                        new String[]{String.valueOf(saleId), String.valueOf(storeId)});
+                boolean valid = invoice.moveToFirst(); invoice.close();
+                if (!valid) throw new IllegalStateException("الفاتورة غير موجودة في المتجر");
+                if (productId > 0) {
+                    Cursor sold = db.rawQuery("SELECT COALESCE(SUM(qty),0), COALESCE(SUM(qty * price),0) FROM " + TABLE_SALE_ITEMS + " WHERE sale_id = ? AND product_id = ?",
+                            new String[]{String.valueOf(saleId), String.valueOf(productId)});
+                    if (!sold.moveToFirst() || sold.getDouble(0) <= 0) { sold.close(); throw new IllegalStateException("الصنف ليس ضمن الفاتورة"); }
+                    double soldQty = sold.getDouble(0), soldValue = sold.getDouble(1); sold.close();
+                    Cursor previous = db.rawQuery("SELECT COALESCE(SUM(qty),0), COALESCE(SUM(amount),0) FROM " + TABLE_RETURNS + " WHERE sale_id = ? AND product_id = ? AND store_id = ? AND type = 'invoice'",
+                            new String[]{String.valueOf(saleId), String.valueOf(productId), String.valueOf(storeId)});
+                    previous.moveToFirst(); double returnedQty = previous.getDouble(0); previous.close();
+                    double averagePrice = soldValue / soldQty;
+                    if (qty > soldQty - returnedQty + 0.000001d || amount > qty * averagePrice + 0.01d)
+                        throw new IllegalStateException("الكمية أو المبلغ يتجاوزان المتبقي من بند الفاتورة");
+                }
+            }
+            if (productId > 0) {
+                Cursor stock = db.rawQuery("SELECT quantity FROM " + TABLE_PRODUCTS + " WHERE id = ? AND store_id = ? LIMIT 1",
+                        new String[]{String.valueOf(productId), String.valueOf(storeId)});
+                if (!stock.moveToFirst()) { stock.close(); throw new IllegalStateException("الصنف غير موجود في المتجر"); }
+                double newQty = stock.getDouble(0) + qty; stock.close();
+                ContentValues stockUpdate = new ContentValues(); stockUpdate.put("quantity", newQty);
+                if (db.update(TABLE_PRODUCTS, stockUpdate, "id = ? AND store_id = ?", new String[]{String.valueOf(productId), String.valueOf(storeId)}) != 1)
+                    throw new IllegalStateException("تعذر تحديث المخزون");
+                ContentValues movement = new ContentValues(); movement.put("store_id", storeId); movement.put("product_id", productId);
+                movement.put("qty_delta", qty); movement.put("reason", "return:" + (saleId == null ? "credit" : saleId));
+                movement.put("created_at", createdAt); db.insert("inventory_movements", null, movement);
+            }
+            if (customerId != null) {
+                Cursor debt = db.rawQuery("SELECT total_debt FROM " + TABLE_CUSTOMERS + " WHERE id = ? AND store_id = ? LIMIT 1",
+                        new String[]{String.valueOf(customerId), String.valueOf(storeId)});
+                if (!debt.moveToFirst()) { debt.close(); throw new IllegalStateException("العميل غير موجود في المتجر"); }
+                double nextDebt = Math.max(0, debt.getDouble(0) - amount); debt.close();
+                ContentValues debtUpdate = new ContentValues(); debtUpdate.put("total_debt", nextDebt);
+                if (db.update(TABLE_CUSTOMERS, debtUpdate, "id = ? AND store_id = ?", new String[]{String.valueOf(customerId), String.valueOf(storeId)}) != 1)
+                    throw new IllegalStateException("تعذر تحديث دين العميل");
+            }
+            id = db.insert(TABLE_RETURNS, null, cv);
+            if (id < 0) throw new IllegalStateException("تعذر حفظ المرتجع");
+            db.setTransactionSuccessful();
+        } catch (Exception e) { id = -1; }
+        finally { db.endTransaction(); }
+        return id;
     }
 
     // ==========================================

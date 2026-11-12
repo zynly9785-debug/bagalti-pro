@@ -38,7 +38,7 @@ public class AddProductActivity extends AppCompatActivity {
 
         dbHelper = new DatabaseHelper(this);
         SharedPreferences prefs = getSharedPreferences("GroceryPrefs", Context.MODE_PRIVATE);
-        storeId = prefs.getInt("store_id", 1);
+        storeId = prefs.getInt("store_id", -1);
 
         etName = findViewById(R.id.etName);
         etBarcode = findViewById(R.id.etBarcode);
@@ -108,21 +108,42 @@ public class AddProductActivity extends AppCompatActivity {
             return;
         }
 
-        double costPrice = costStr.isEmpty() ? 0 : Double.parseDouble(costStr);
-        double salePrice = Double.parseDouble(saleStr);
-        double quantity = Double.parseDouble(qtyStr);
-
-        // منطق احتساب سعر القطعة في حال كان كرتون
+        final double costPriceInput, salePrice, quantity;
+        try {
+            costPriceInput = costStr.isEmpty() ? 0 : Double.parseDouble(costStr);
+            salePrice = Double.parseDouble(saleStr);
+            quantity = Double.parseDouble(qtyStr);
+        } catch (NumberFormatException e) {
+            Toast.makeText(this, "أدخل أسعاراً وكميات رقمية صحيحة", Toast.LENGTH_LONG).show(); return;
+        }
+        if (Double.isNaN(costPriceInput) || Double.isInfinite(costPriceInput) || costPriceInput < 0 ||
+                Double.isNaN(salePrice) || Double.isInfinite(salePrice) || salePrice < 0 ||
+                Double.isNaN(quantity) || Double.isInfinite(quantity) || quantity < 0) {
+            Toast.makeText(this, "الأسعار والكميات يجب أن تكون قيمًا غير سالبة", Toast.LENGTH_LONG).show(); return;
+        }
+        double costPrice = costPriceInput;
         if ("كرتون".equals(unitType)) {
             String cartonPriceStr = etCartonPrice.getText().toString().trim();
             String piecesStr = etPiecesInCarton.getText().toString().trim();
-            if (!cartonPriceStr.isEmpty() && !piecesStr.isEmpty()) {
+            if (cartonPriceStr.isEmpty() || piecesStr.isEmpty()) {
+                Toast.makeText(this, "أدخل سعر الكرتون وعدد القطع فيه", Toast.LENGTH_LONG).show(); return;
+            }
+            try {
                 double cartonPrice = Double.parseDouble(cartonPriceStr);
                 double piecesCount = Double.parseDouble(piecesStr);
-                if (piecesCount > 0) {
-                    costPrice = cartonPrice / piecesCount;
+                if (cartonPrice < 0 || piecesCount <= 0 || Double.isNaN(cartonPrice) || Double.isInfinite(cartonPrice) || Double.isNaN(piecesCount) || Double.isInfinite(piecesCount)) {
+                    Toast.makeText(this, "سعر الكرتون وعدد القطع غير صالحين", Toast.LENGTH_LONG).show(); return;
                 }
-            }
+                costPrice = cartonPrice / piecesCount;
+            } catch (NumberFormatException e) { Toast.makeText(this, "بيانات الكرتون غير صحيحة", Toast.LENGTH_LONG).show(); return; }
+        }
+        if (storeId <= 0) { Toast.makeText(this, "تعذر تحديد المتجر الحالي. سجّل الدخول مجدداً.", Toast.LENGTH_LONG).show(); return; }
+        if (!barcode.isEmpty()) {
+            android.database.Cursor existing = null;
+            try {
+                existing = dbHelper.getReadableDatabase().rawQuery("SELECT id FROM " + DatabaseHelper.TABLE_PRODUCTS + " WHERE store_id = ? AND barcode = ? AND is_active = 1 LIMIT 1", new String[]{String.valueOf(storeId), barcode});
+                if (existing.moveToFirst()) { Toast.makeText(this, "هذا الباركود مسجل لصنف آخر في متجرك", Toast.LENGTH_LONG).show(); return; }
+            } finally { if (existing != null) existing.close(); }
         }
 
         long res = dbHelper.insertProduct(storeId, name, barcode, unitType, costPrice, salePrice, quantity, 5);
