@@ -86,46 +86,44 @@ public class RegisterActivity extends AppCompatActivity {
         }
         if (checkCursor != null) checkCursor.close();
 
-        long newStoreId = dbHelper.registerUser(storeName, ownerName, phone, password, gov, district, neighborhood);
-        if (newStoreId > 0) {
+        showPinCreationDialog(storeName, ownerName, phone, password, gov, district, neighborhood);
+    }
+
+    private void showPinCreationDialog(String storeName, String ownerName, String phone, String password,
+                                       String gov, String district, String neighborhood) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("إنشاء رمز الأمان (PIN)");
+        builder.setMessage("أدخل رمز سري مكون من 4 أرقام لحماية عمليات الإلغاء والدخول السريع:");
+
+        final EditText etPin = new EditText(this);
+        etPin.setHint("أدخل 4 أرقام");
+        etPin.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        builder.setView(etPin);
+
+        AlertDialog dialog = builder.setPositiveButton("حفظ والمتابعة", null).setCancelable(false).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String pin = etPin.getText().toString();
+            if (!pin.matches("[0-9]{4}")) {
+                etPin.setError("يجب إدخال أربعة أرقام بالضبط");
+                return;
+            }
+            long newStoreId = dbHelper.registerUser(storeName, ownerName, phone, password, pin, gov, district, neighborhood);
+            if (newStoreId <= 0) {
+                Toast.makeText(this, "حدث خطأ أثناء إنشاء الحساب", Toast.LENGTH_SHORT).show();
+                return;
+            }
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.putInt("user_id", (int) newStoreId);
             editor.putInt("store_id", (int) newStoreId);
             editor.putString("status", "active");
             editor.putString("store_name", storeName);
             editor.apply();
-
-            showPinCreationDialog((int) newStoreId);
-        } else {
-            Toast.makeText(this, "حدث خطأ أثناء إنشاء الحساب", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void showPinCreationDialog(int storeId) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("إنشاء رمز الأمان (PIN)");
-        builder.setMessage("أدخل رمز سري مكون من 4 أرقام لحماية عمليات الإلغاء والدخول السريع:");
-
-        final EditText etPin = new EditText(this);
-        etPin.setHint("مثال: 1234");
-        etPin.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
-        builder.setView(etPin);
-
-        builder.setPositiveButton("حفظ والمتابعة", (dialog, which) -> {
-            String pin = etPin.getText().toString().trim();
-            if (pin.length() >= 4) {
-                dbHelper.getWritableDatabase().execSQL(
-                        "UPDATE " + DatabaseHelper.TABLE_USERS + " SET pin_code = ? WHERE id = ?",
-                        new Object[]{pin, storeId});
-            }
             Toast.makeText(this, "تم إنشاء الحساب بنجاح مع تجربة مجانية 60 يوم!", Toast.LENGTH_LONG).show();
             Intent intent = new Intent(RegisterActivity.this, DashboardActivity.class);
             intent.putExtra("isSuspended", false);
             startActivity(intent);
             finish();
-        });
-
-        builder.setCancelable(false);
-        builder.show();
+        }));
+        dialog.show();
     }
 }

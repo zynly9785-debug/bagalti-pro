@@ -36,7 +36,17 @@
         <activity android:name=".StatementActivity" android:exported="false"/>
         <activity android:name=".ReturnsActivity" android:exported="false"/>
         <activity android:name=".SettingsActivity" android:exported="false"/>
-        <activity android:name=".OwnerActivity" android:exported="false"/>
+        <activity android:name=".InvoicesActivity" android:exported="false"/>
+        <activity android:name=".ReportsActivity" android:exported="false"/>
+        <activity android:name=".ExpensesActivity" android:exported="false"/>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths"/>
+        </provider>
 
     </application>
 
