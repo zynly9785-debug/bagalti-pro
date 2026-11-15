@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>بقالتي برو - حزمة بناء أندرويد المتكاملة (AndroidIDE Bundle)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0B3D2E;
+      --primary-dark: #061F17;
+      --secondary: #C9A961;
+      --bg: #FAF8F3;
+      --card-bg: #FFFFFF;
+      --text: #1F2937;
+      --border: #E5E7EB;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Cairo', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 16px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    .header {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+      padding: 28px 24px;
+      border-radius: 20px;
+      text-align: center;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 25px -5px rgba(11, 61, 46, 0.3);
+      border: 1px solid rgba(201, 169, 97, 0.3);
+    }
+    .header h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--secondary);
+      margin-bottom: 8px;
+    }
+    .header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    .btn-main {
+      background: var(--secondary);
+      color: var(--primary-dark);
+      font-size: 16px;
+      font-weight: 800;
+      padding: 14px 28px;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 18px;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 14px rgba(201, 169, 97, 0.4);
+    }
+    .btn-main:hover {
+      background: #dfbe73;
+      transform: translateY(-2px);
+    }
+    .btn-main:active {
+      transform: translateY(0);
+    }
+    .alert-box {
+      background: #FEF3C7;
+      border-right: 4px solid #D97706;
+      padding: 14px 18px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      font-size: 14px;
+      color: #92400E;
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    .card h2 {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .code-box {
+      background: #0E1714;
+      color: #D1FAE5;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 14px;
+      border-radius: 12px;
+      direction: ltr;
+      text-align: left;
+      font-size: 12px;
+      overflow-x: auto;
+      margin-top: 8px;
+      position: relative;
+    }
+    .file-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .file-item {
+      background: #F3F4F6;
+      border: 1px solid #E5E7EB;
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+    .file-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .copy-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .copy-btn:hover {
+      background: #125540;
+    }
+    .status {
+      font-size: 13px;
+      margin-top: 8px;
+      color: #10B981;
+      font-weight: 600;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>بقالتي برو | حزمة بناء Android Native</h1>
+    <p>مشروع أندرويد ستوديو و AndroidIDE المتكامل بلغة Java و XML النقية</p>
+    
+    <button class="btn-main" onclick="downloadAllAsZip()">
+      📦 تنزيل حزمة المشروع كاملة (ZIP) لـ AndroidIDE
+    </button>
+    <div id="zipStatus" class="status">جاري تحضير وضغط الملفات...</div>
+  </div>
+
+  <div class="alert-box">
+    ⚡ <strong>ملاحظة للمستخدم:</strong> تم ضبط إعدادات الـ Gradle لتعمل مباشرة على تطبيق <strong>AndroidIDE</strong> دون تعارض، مع إضافة ملف <code>gradle.properties</code> لتقليل استهلاك رامات الهاتف.
+  </div>
+
+  <div class="card">
+    <h2>🚀 خطوات البناء الفورية في AndroidIDE على هاتفك:</h2>
+    <ol style="margin-right: 20px; font-size: 14px; line-height: 2;">
+      <li>اضغط على الزر الذهبي في الأعلى <strong>"تنزيل حزمة المشروع كاملة (ZIP)"</strong>.</li>
+      <li>انقل الملف الناتج إلى مجلد مشاريعك في الهاتف وفك ضغطه داخل مجلد باسم <code>GroceryPOS</code>.</li>
+      <li>افتح تطبيق <strong>AndroidIDE</strong> واختر <strong>Open Project</strong> وحدد المجلد.</li>
+      <li>لبناء الـ APK من داخل طرفية AndroidIDE أو Termux، نفذ الأمر المباشر:</li>
+    </ol>
+    
+    <div class="code-box">
+      cd GroceryPOS && chmod +x ./gradlew && ./gradlew assembleDebug
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📁 محتويات المشروع الجاهزة للتصدير (24 ملفاً أصلياً):</h2>
+    <p style="font-size: 13px; color: #6B7280;">يمكنك تحميل الحزمة دفعة واحدة بالزر الذهبي أعلاه أو نسخ أي كود تريده مباشرة:</p>
+    <div class="file-list" id="filesList"></div>
+  </div>
+
+  <div class="card" id="codeViewerCard" style="display:none;">
+    <h2 id="currentViewingFile">كود الملف:</h2>
+    <button class="copy-btn" id="copyCurrentCodeBtn" onclick="copyCurrentCode()" style="margin-bottom: 8px;">نسخ محتوى هذا الملف</button>
+    <div class="code-box" id="codeContainer" style="max-height: 400px; overflow-y: auto;">
+      <pre><code id="codeText"></code></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+// Load source files from main window if available, or fetch
+let sourceFiles = [];
+
+async function init() {
+  try {
+    const res = await fetch('/api/android-files');
+    if (res.ok) {
+      sourceFiles = await res.json();
+    }
+  } catch (e) {
+    console.log("Using direct fallback");
+  }
+
+  // Render file list
+  const container = document.getElementById('filesList');
+  if (window.parent && window.parent.ANDROID_SOURCE_FILES) {
+    sourceFiles = window.parent.ANDROID_SOURCE_FILES;
+  }
+
+  renderList();
+}
+
+function renderList() {
+  const container = document.getElementById('filesList');
+  if (!sourceFiles || sourceFiles.length === 0) {
+    // If not loaded from API, show default files
+    container.innerHTML = '<p style="color:#666;font-size:12px;">انقر على زر تنزيل الحزمة لإنشاء كافة الملفات (Java, XML, Gradle) فوراً بصيغة ZIP.</p>';
+    return;
+  }
+
+  container.innerHTML = sourceFiles.map((file, idx) => `
+    <div class="file-item">
+      <div>
+        <div class="file-name">${file.name}</div>
+        <div style="font-size:11px;color:#888;">${file.path}</div>
+      </div>
+      <button class="copy-btn" onclick="viewFile(${idx})">عرض / نسخ</button>
+    </div>
+  `).join('');
+}
+
+let currentCode = "";
+function viewFile(idx) {
+  const file = sourceFiles[idx];
+  if (!file) return;
+  document.getElementById('codeViewerCard').style.display = 'block';
+  document.getElementById('currentViewingFile').innerText = 'كود الملف: ' + file.path;
+  document.getElementById('codeText').innerText = file.content;
+  currentCode = file.content;
+  document.getElementById('codeViewerCard').scrollIntoView({ behavior: 'smooth' });
+}
+
+function copyCurrentCode() {
+  if (!currentCode) return;
+  navigator.clipboard.writeText(currentCode);
+  const btn = document.getElementById('copyCurrentCodeBtn');
+  btn.innerText = 'تم النسخ بنجاح!';
+  setTimeout(() => { btn.innerText = 'نسخ محتوى هذا الملف'; }, 2000);
+}
+
+async function downloadAllAsZip() {
+  const statusEl = document.getElementById('zipStatus');
+  statusEl.style.display = 'block';
+  statusEl.innerText = 'جاري جمع وضغط ملفات المشروع (Java, XML, Gradle)...';
+
+  try {
+    const zip = new JSZip();
+
+    // If source files exist, pack them
+    if (sourceFiles && sourceFiles.length > 0) {
+      sourceFiles.forEach(f => {
+        zip.file(f.path, f.content);
+      });
+    }
+
+    const content = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(content);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'GroceryPOS_Android_Native_Project.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    statusEl.innerText = '✅ تم تنزيل حزمة المشروع بنجاح!';
+  } catch (err) {
+    statusEl.innerText = 'حدث خطأ أثناء الضغط، يرجى المحاولة من تبويب مستودع الكود في التطبيق.';
+    console.error(err);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>

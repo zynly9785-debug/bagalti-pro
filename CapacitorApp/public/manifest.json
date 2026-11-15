@@ -1,0 +1,26 @@
+{
+  "name": "بقالة بلس - إدارة البقالة ونقاط البيع",
+  "short_name": "بقالة بلس",
+  "description": "نظام كاشير ونقاط بيع وإدارة ديون ومخزون للبقالات والمحلات التجارية",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF8F3",
+  "theme_color": "#1E3A2F",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
