@@ -1,7 +1,7 @@
 {
   "name": "baqalati-pro",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.4.1",
   "type": "module",
   "packageManager": "npm@10.9.9",
   "scripts": {
@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/utils/pureLogic.test.ts src/db/sqlite-simulation.test.ts src/services/authService.test.ts"
+    "test": "tsx --test src/utils/pureLogic.test.ts src/db/sqlite-simulation.test.ts src/db/sqliteTransactionUtils.test.ts src/services/authService.test.ts"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "8.1.1",

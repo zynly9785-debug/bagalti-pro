@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Store, Phone, Lock, Sparkles, Key, AlertCircle } from 'lucide-react';
+import { Store, Phone, Lock, Sparkles, Key, AlertCircle, PhoneCall, MessageCircle, ArrowRight } from 'lucide-react';
 import { db } from '../../../db/sqlite-simulation.ts';
 import { checkSecretTaps } from '../../../utils/pureLogic.ts';
 import { useTheme } from '../../../context/ThemeContext.tsx';
@@ -26,6 +26,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate, onOpenOwne
   const [busyBiometric, setBusyBiometric] = useState(false);
   const [busyLogin, setBusyLogin] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [showPasswordHelp, setShowPasswordHelp] = useState(false);
   React.useEffect(() => { const timer = window.setTimeout(() => setShowWelcome(false), 4500); return () => window.clearTimeout(timer); }, []);
   React.useEffect(() => {
     const prefs = db.getSharedPreferences();
@@ -74,6 +75,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate, onOpenOwne
       else setError(message || 'تعذر الدخول بالبصمة؛ استخدم كلمة المرور أو أعد تفعيل البصمة من الإعدادات.');
     } finally { setBusyBiometric(false); }
   };
+
+  if (showPasswordHelp) {
+    const supportPhone = '+967778228995';
+    const supportDigits = '967778228995';
+    return (
+      <div className={`flex-1 flex flex-col p-6 ${theme.screenBg}`} dir="rtl">
+        <button type="button" onClick={() => setShowPasswordHelp(false)} className="flex items-center gap-2 self-start rounded-xl border px-3 py-2 text-xs font-bold">
+          <ArrowRight className="h-4 w-4" /> العودة لتسجيل الدخول
+        </button>
+        <section className={`m-auto w-full max-w-sm rounded-2xl border p-5 text-center shadow-md ${theme.cardBg}`}>
+          <h2 className="mb-3 text-base font-extrabold text-[#0B3D2E]">نسيت كلمة المرور؟</h2>
+          <p className={`mb-5 text-sm leading-7 ${theme.textSecondary}`}>لفتح متجرك، يرجى التواصل مع إدارة تطبيق بقالتي برو لحل المشكلة وتأكيد هويتك قبل إعادة تعيين كلمة المرور.</p>
+          <div className="grid grid-cols-3 gap-2">
+            <a href={`tel:${supportPhone}`} className="flex flex-col items-center gap-2 rounded-xl bg-emerald-700 p-3 text-xs font-bold text-white"><PhoneCall className="h-5 w-5" />اتصال</a>
+            <a href={`sms:${supportPhone}?body=${encodeURIComponent('أحتاج إلى إعادة تعيين كلمة مرور حساب بقالتي برو. رقم هاتفي: ' + phone)}`} className="flex flex-col items-center gap-2 rounded-xl bg-slate-700 p-3 text-xs font-bold text-white"><MessageCircle className="h-5 w-5" />رسائل SMS</a>
+            <a href={`https://wa.me/${supportDigits}?text=${encodeURIComponent('أحتاج إلى إعادة تعيين كلمة مرور حساب بقالتي برو. رقم هاتفي: ' + phone)}`} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-2 rounded-xl bg-[#25D366] p-3 text-xs font-bold text-white"><MessageCircle className="h-5 w-5" />واتساب</a>
+          </div>
+          <p dir="ltr" className="mt-4 text-xs font-bold text-[#0B3D2E]">{supportPhone}</p>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex-1 flex flex-col justify-between p-6 overflow-y-auto transition-colors duration-300 ${theme.screenBg}`}>
@@ -145,6 +168,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate, onOpenOwne
             <span>{busyLogin ? 'جارٍ التحقق…' : 'دخول'}</span>
           </button>
           {biometricEnabled && <button type="button" onClick={handleBiometricLogin} disabled={busyBiometric} className="w-full border border-[#C9A961] text-[#0B3D2E] py-2.5 rounded-xl font-bold text-xs disabled:opacity-50">{busyBiometric ? 'جارٍ التحقق…' : 'الدخول ببصمة الهاتف'}</button>}
+          <button type="button" onClick={() => setShowPasswordHelp(true)} className="w-full text-center text-xs font-bold text-[#0B3D2E] underline underline-offset-2">نسيت كلمة المرور؟ تواصل مع الإدارة</button>
         </form>
       </div>
 

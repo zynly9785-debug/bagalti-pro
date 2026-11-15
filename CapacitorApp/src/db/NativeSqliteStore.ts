@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection, type SQLiteDBConnection } from '@capacitor-community/sqlite';
+import { clearApplicationRecords } from './sqliteTransactionUtils.ts';
 
 const DATABASE_NAME = 'bagalati_pro';
 const DATABASE_VERSION = 1;
@@ -74,7 +75,7 @@ export class NativeSqliteStore {
     const rows = this.toRows(state);
     await db.beginTransaction();
     try {
-      await db.execute('DELETE FROM app_records;');
+      await clearApplicationRecords(db);
       for (const row of rows) await this.upsertRow(db, row);
       await db.run("INSERT INTO app_metadata(key,value) VALUES('state_schema_version','1') ON CONFLICT(key) DO UPDATE SET value=excluded.value");
       await db.commitTransaction();
