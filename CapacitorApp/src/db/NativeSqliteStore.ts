@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection, type SQLiteDBConnection } from '@capacitor-community/sqlite';
-import { clearApplicationRecords } from './sqliteTransactionUtils.ts';
+import { clearApplicationRecords, runInExistingTransaction } from './sqliteTransactionUtils.ts';
 
 const DATABASE_NAME = 'bagalati_pro';
 const DATABASE_VERSION = 1;
@@ -77,7 +77,7 @@ export class NativeSqliteStore {
     try {
       await clearApplicationRecords(db);
       for (const row of rows) await this.upsertRow(db, row);
-      await db.run("INSERT INTO app_metadata(key,value) VALUES('state_schema_version','1') ON CONFLICT(key) DO UPDATE SET value=excluded.value");
+      await runInExistingTransaction(db, "INSERT INTO app_metadata(key,value) VALUES('state_schema_version','1') ON CONFLICT(key) DO UPDATE SET value=excluded.value");
       await db.commitTransaction();
     } catch (error) {
       await db.rollbackTransaction().catch(() => undefined);
@@ -98,10 +98,10 @@ export class NativeSqliteStore {
         }
         for (const [key, row] of before) {
           if (!after.has(key)) {
-            await db.run('DELETE FROM app_records WHERE entity = ? AND store_id = ? AND record_id = ?', [row.entity, row.store_id, row.record_id]);
+            await runInExistingTransaction(db, 'DELETE FROM app_records WHERE entity = ? AND store_id = ? AND record_id = ?', [row.entity, row.store_id, row.record_id]);
           }
         }
-        await db.run("INSERT INTO app_metadata(key,value) VALUES('state_schema_version','1') ON CONFLICT(key) DO UPDATE SET value=excluded.value");
+        await runInExistingTransaction(db, "INSERT INTO app_metadata(key,value) VALUES('state_schema_version','1') ON CONFLICT(key) DO UPDATE SET value=excluded.value");
         await db.commitTransaction();
       } catch (error) {
         await db.rollbackTransaction().catch(() => undefined);
@@ -124,7 +124,7 @@ export class NativeSqliteStore {
       await db.beginTransaction();
       try {
         for (const [key, value] of Object.entries(prefs)) {
-          await db.run('INSERT INTO app_preferences(key,value_json) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json', [key, JSON.stringify(value)]);
+          await runInExistingTransaction(db, 'INSERT INTO app_preferences(key,value_json) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json', [key, JSON.stringify(value)]);
         }
         await db.commitTransaction();
       } catch (error) {
@@ -145,7 +145,7 @@ export class NativeSqliteStore {
   }
 
   private async upsertRow(db: SQLiteDBConnection, row: StoredRow): Promise<void> {
-    await db.run(
+    await runInExistingTransaction(db,
       'INSERT INTO app_records(entity,store_id,record_id,payload_json) VALUES(?,?,?,?) ON CONFLICT(entity,store_id,record_id) DO UPDATE SET payload_json=excluded.payload_json',
       [row.entity, row.store_id, row.record_id, row.payload_json],
     );

@@ -1,8 +1,12 @@
 type SqliteRunner = {
-  run: (statement: string, values?: unknown[]) => Promise<unknown>;
+  run: (statement: string, values?: unknown[], transaction?: boolean) => Promise<unknown>;
 };
 
-/** Execute a single mutation with run(), which participates in the current transaction. */
+/** Run a statement inside the caller's open transaction without starting a nested transaction. */
+export async function runInExistingTransaction(db: SqliteRunner, statement: string, values: unknown[] = []): Promise<void> {
+  await db.run(statement, values, false);
+}
+
 export async function clearApplicationRecords(db: SqliteRunner): Promise<void> {
-  await db.run('DELETE FROM app_records;');
+  await runInExistingTransaction(db, 'DELETE FROM app_records;');
 }
