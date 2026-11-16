@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, LockKeyhole, Phone, ShieldCheck, X } from 'lucide-react';
 import { supabase } from '../../supabaseClient.ts';
-import { authAliasForPhone } from '../../utils/phoneAuth.ts';
+import { normalizePhoneForAuth } from '../../utils/phoneAuth.ts';
 
 interface OwnerSecretDialogProps {
   isOpen: boolean;
@@ -50,19 +50,28 @@ export const OwnerSecretDialog: React.FC<OwnerSecretDialogProps> = ({ isOpen, on
 
     setBusy(true);
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: authAliasForPhone(phone),
-        password,
+      const normalizedPhone = normalizePhoneForAuth(phone);
+      const { data: loginData, error: loginError } = await supabase.functions.invoke('owner-sign-in-by-phone', {
+        body: { phone: normalizedPhone, password },
       });
-      if (signInError || !data.user) {
-        setError('تعذر تسجيل الدخول. تحقق من الرقم وكلمة المرور أو إعدادات حساب الإدارة.');
+      if (loginError || !loginData?.access_token || !loginData?.refresh_token) {
+        setError(loginData?.error || 'تعذر تسجيل الدخول. تحقق من الرقم وكلمة المرور أو إعدادات حساب الإدارة.');
+        return;
+      }
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token: loginData.access_token,
+        refresh_token: loginData.refresh_token,
+      });
+      if (sessionError || !sessionData.user) {
+        setError('تم التحقق من الحساب لكن تعذر إنشاء جلسة آمنة. أعد المحاولة.');
         return;
       }
 
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('platform_role')
-        .eq('user_id', data.user.id)
+        .eq('user_id', sessionData.user.id)
         .maybeSingle();
 
       if (profileError || profile?.platform_role !== 'platform_owner') {
