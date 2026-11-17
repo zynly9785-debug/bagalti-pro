@@ -16,7 +16,7 @@ import java.util.List;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "grocery_pos.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2;
 
     // أسماء الجداول
     public static final String TABLE_USERS = "users";
@@ -26,6 +26,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String TABLE_SALE_ITEMS = "sale_items";
     public static final String TABLE_RETURNS = "returns";
     public static final String TABLE_PACKAGES = "subscription_packages";
+    public static final String TABLE_EXPENSES = "expenses";
 
     public DatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -117,6 +118,12 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 "is_active INTEGER DEFAULT 1" +
                 ");";
 
+        String createExpenses = "CREATE TABLE IF NOT EXISTS " + TABLE_EXPENSES + " (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, store_id INTEGER NOT NULL, " +
+                "title TEXT NOT NULL, category TEXT NOT NULL, amount REAL NOT NULL, " +
+                "payment_method TEXT NOT NULL, payee TEXT, reference TEXT, " +
+                "expense_date TEXT NOT NULL, notes TEXT)";
+
         db.execSQL(createUsers);
         db.execSQL(createProducts);
         db.execSQL(createCustomers);
@@ -124,6 +131,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL(createSaleItems);
         db.execSQL(createReturns);
         db.execSQL(createPackages);
+        db.execSQL(createExpenses);
 
         // إدراج باقات افتراضية قابلة للتعديل والزيادة
         db.execSQL("INSERT INTO " + TABLE_PACKAGES + " (name, duration_days, price, description) VALUES ('باقة شهرية أساسية', 30, 5000, 'اشتراك كامل لمدة 30 يوم');");
@@ -133,14 +141,56 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_PACKAGES);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_ITEMS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_RETURNS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALES);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_PRODUCTS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_CUSTOMERS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_USERS);
-        onCreate(db);
+        if (oldVersion < 2) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_EXPENSES + " (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, store_id INTEGER NOT NULL, " +
+                    "title TEXT NOT NULL, category TEXT NOT NULL, amount REAL NOT NULL, " +
+                    "payment_method TEXT NOT NULL, payee TEXT, reference TEXT, " +
+                    "expense_date TEXT NOT NULL, notes TEXT)");
+        }
+    }
+
+    public long insertExpense(int storeId, String title, String category, double amount,
+                              String paymentMethod, String payee, String reference,
+                              String expenseDate, String notes) {
+        ContentValues values = new ContentValues();
+        values.put("store_id", storeId);
+        values.put("title", title);
+        values.put("category", category);
+        values.put("amount", amount);
+        values.put("payment_method", paymentMethod);
+        values.put("payee", payee);
+        values.put("reference", reference);
+        values.put("expense_date", expenseDate);
+        values.put("notes", notes);
+        return getWritableDatabase().insert(TABLE_EXPENSES, null, values);
+    }
+
+    public boolean updateExpense(int storeId, int expenseId, String title, String category, double amount,
+                                 String paymentMethod, String payee, String reference,
+                                 String expenseDate, String notes) {
+        ContentValues values = new ContentValues();
+        values.put("title", title);
+        values.put("category", category);
+        values.put("amount", amount);
+        values.put("payment_method", paymentMethod);
+        values.put("payee", payee);
+        values.put("reference", reference);
+        values.put("expense_date", expenseDate);
+        values.put("notes", notes);
+        return getWritableDatabase().update(TABLE_EXPENSES, values, "id = ? AND store_id = ?",
+                new String[]{String.valueOf(expenseId), String.valueOf(storeId)}) > 0;
+    }
+
+    public Cursor getExpenses(int storeId) {
+        return getReadableDatabase().rawQuery("SELECT * FROM " + TABLE_EXPENSES +
+                " WHERE store_id = ? ORDER BY expense_date DESC, id DESC",
+                new String[]{String.valueOf(storeId)});
+    }
+
+    public boolean deleteExpense(int storeId, int expenseId) {
+        return getWritableDatabase().delete(TABLE_EXPENSES, "id = ? AND store_id = ?",
+                new String[]{String.valueOf(expenseId), String.valueOf(storeId)}) > 0;
     }
 
     // ==========================================

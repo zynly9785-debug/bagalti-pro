@@ -118,7 +118,7 @@ public class RegisterActivity extends AppCompatActivity {
                         "UPDATE " + DatabaseHelper.TABLE_USERS + " SET pin_code = ? WHERE id = ?",
                         new Object[]{pin, storeId});
             }
-            Toast.makeText(this, "تم إنشاء الحساب بنجاح مع تجربة مجانية 60 يوم!", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "تم إنشاء الحساب بنجاح", Toast.LENGTH_LONG).show();
             Intent intent = new Intent(RegisterActivity.this, DashboardActivity.class);
             intent.putExtra("isSuspended", false);
             startActivity(intent);

@@ -12,6 +12,7 @@ public class DashboardActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_dashboard); // هذا السطر هو الأساس لإظهار كافة الأزرار والحقول في الشاشة
 
-        // يمكنك هنا إضافة تفاعلات الأزرار للانتقال لشاشات المخزن أو العملاء أو نقاط البيع عند الحاجة
+        findViewById(R.id.btnExpenses).setOnClickListener(v ->
+                startActivity(new Intent(DashboardActivity.this, ExpensesActivity.class)));
     }
 }

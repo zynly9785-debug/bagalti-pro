@@ -37,6 +37,7 @@
         <activity android:name=".ReturnsActivity" android:exported="false"/>
         <activity android:name=".SettingsActivity" android:exported="false"/>
         <activity android:name=".OwnerActivity" android:exported="false"/>
+        <activity android:name=".ExpensesActivity" android:exported="false"/>
 
     </application>
 
