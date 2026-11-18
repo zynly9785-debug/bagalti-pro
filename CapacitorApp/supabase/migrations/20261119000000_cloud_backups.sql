@@ -16,14 +16,17 @@ alter table public.cloud_backups enable row level security;
 revoke all on public.cloud_backups from anon;
 grant select, insert, delete on public.cloud_backups to authenticated;
 
+drop policy if exists cloud_backups_store_member_select on public.cloud_backups;
 create policy cloud_backups_store_member_select on public.cloud_backups
   for select to authenticated
   using ((select private.is_store_member(store_id)));
 
+drop policy if exists cloud_backups_store_member_insert on public.cloud_backups;
 create policy cloud_backups_store_member_insert on public.cloud_backups
   for insert to authenticated
   with check ((select private.is_store_member(store_id)));
 
+drop policy if exists cloud_backups_store_member_delete on public.cloud_backups;
 create policy cloud_backups_store_member_delete on public.cloud_backups
   for delete to authenticated
   using ((select private.is_store_member(store_id)));
