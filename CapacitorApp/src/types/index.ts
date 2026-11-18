@@ -48,6 +48,9 @@ export interface Product {
   quantity: number;
   min_stock: number;
   expiry_date?: string;
+  sku?: string;
+  storage_location?: string;
+  additional_sale_units?: Array<{ name: string; factor: number; price: number }>;
   is_active: number; // 1 = active, 0 = inactive
 }
 
@@ -57,8 +60,100 @@ export interface Customer {
   store_id: number;
   name: string;
   phone: string;
+  phone_secondary?: string;
+  address?: string;
+  image_url?: string;
+  notes?: string;
+  category?: 'منتظم' | 'مميز' | 'جديد' | 'متأخر' | 'متعثر' | 'موقوف';
+  status?: 'active' | 'suspended' | 'archived';
   total_debt: number;
-  credit_limit?: number; // سقف الدين المسموح
+  credit_limit?: number;
+  credit_warning_percent?: number;
+  allow_credit_override?: boolean;
+  payment_term_days?: number;
+  opening_balance?: number;
+  opening_balance_date?: string;
+  registered_at?: string;
+  last_purchase_at?: string;
+  last_payment_at?: string;
+  next_due_at?: string;
+}
+
+export interface CustomerPayment {
+  id: number;
+  sync_id?: string;
+  store_id: number;
+  customer_id: number;
+  amount: number;
+  method: 'نقداً' | 'تحويل بنكي' | 'محفظة إلكترونية' | 'أخرى';
+  reference?: string;
+  sale_ids?: number[];
+  notes?: string;
+  created_at: string;
+  receipt_number: string;
+  operator_name?: string;
+  shift_id?: number;
+}
+
+export interface CustomerLedgerEntry {
+  id: number;
+  sync_id?: string;
+  store_id: number;
+  customer_id: number;
+  date: string;
+  reference: string;
+  description: string;
+  debit: number;
+  credit: number;
+  kind: 'opening_balance' | 'invoice' | 'payment' | 'return' | 'adjustment' | 'merge';
+  source_id?: number | string;
+}
+
+export interface CustomerPaymentPlan {
+  id: number;
+  sync_id?: string;
+  store_id: number;
+  customer_id: number;
+  sale_id?: number;
+  title: string;
+  notes?: string;
+  created_at: string;
+  installments: CustomerInstallment[];
+}
+
+export interface CustomerInstallment {
+  id: number;
+  amount: number;
+  due_date: string;
+  paid_amount: number;
+  paid_at?: string;
+  status: 'لم يحن موعدها' | 'مستحقة قريباً' | 'مستحقة اليوم' | 'متأخرة' | 'مسددة جزئياً' | 'مسددة بالكامل';
+}
+
+export interface CustomerCommunication {
+  id: number;
+  sync_id?: string;
+  store_id: number;
+  customer_id: number;
+  date: string;
+  method: 'واتساب' | 'اتصال' | 'رسالة' | 'زيارة';
+  subject: string;
+  amount_discussed?: number;
+  promise_to_pay?: boolean;
+  expected_payment_date?: string;
+  follow_up_at?: string;
+  notes?: string;
+}
+
+export interface CustomerMergeRecord {
+  id: number;
+  sync_id?: string;
+  store_id: number;
+  primary_customer_id: number;
+  merged_customer_id: number;
+  merged_customer_snapshot: Customer;
+  created_at: string;
+  reason?: string;
 }
 
 export interface Sale {
@@ -73,6 +168,10 @@ export interface Sale {
   remaining_amount: number;
   payment_type: 'نقداً' | 'آجل' | 'شبكة';
   created_at: string;
+  operator_name?: string;
+  shift_id?: number;
+  is_archived?: boolean;
+  archived_at?: string;
 }
 
 export interface ParkedSale {
@@ -107,6 +206,8 @@ export interface ReturnItem {
   amount: number;
   type: 'invoice' | 'credit';
   created_at: string;
+  operator_name?: string;
+  shift_id?: number;
 }
 
 export interface Expense {
@@ -121,6 +222,8 @@ export interface Expense {
   reference?: string;
   notes?: string;
   created_at: string;
+  operator_name?: string;
+  shift_id?: number;
 }
 
 export interface CartItem {
@@ -128,6 +231,19 @@ export interface CartItem {
   qty: number;
   price: number;
   subtotal: number;
+}
+
+export interface DrawerShift {
+  id: number;
+  sync_id?: string;
+  store_id: number;
+  operator_name: string;
+  opening_amount: number;
+  opening_at: string;
+  status: 'open' | 'closed';
+  closing_amount?: number;
+  closing_at?: string;
+  closed_by?: string;
 }
 
 export interface SharedPreferences {
@@ -149,4 +265,35 @@ export interface SharedPreferences {
   receipt_footer?: string;
   receipt_width_mm?: '58' | '80';
   low_stock_alerts_enabled?: boolean;
+  offline_password_hash?: string;
+  active_shift_id?: number;
+  pos_allow_negative_stock?: boolean;
+  pos_require_customer_for_credit?: boolean;
+  pos_show_arabic_numbers?: boolean;
+  pos_sound_enabled?: boolean;
+  pos_quick_scan_enabled?: boolean;
+  pos_default_payment?: 'نقداً' | 'آجل' | 'شبكة';
+  sales_discount_limit_percent?: number;
+  customer_default_credit_limit?: number;
+  customer_default_payment_days?: number;
+  customer_credit_warning_percent?: number;
+  customer_block_credit_over_limit?: boolean;
+  customer_auto_classification?: boolean;
+  debt_reminder_days_before?: number;
+  debt_reminder_days_after?: number;
+  report_default_period?: 'today' | 'week' | 'month';
+  inventory_allow_duplicate_barcode?: boolean;
+  inventory_auto_generate_sku?: boolean;
+  inventory_expiry_warning_days?: number;
+  backup_auto_daily?: boolean;
+  backup_retain_count?: number;
+  sync_auto_enabled?: boolean;
+  sync_wifi_only?: boolean;
+  cloud_backup_frequency?: 'manual' | 'daily' | 'weekly' | 'shift_close';
+  auto_lock_minutes?: 1 | 5 | 15 | 30 | 60;
+  thermal_printer?: string;
+  barcode_source?: 'camera' | 'external';
+  tax_registration_number?: string;
+  vat_enabled?: boolean;
+  vat_percent?: number;
 }

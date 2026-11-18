@@ -32,7 +32,7 @@ import { DashboardScreen } from './components/simulator/screens/DashboardScreen.
 import { PosScreen } from './components/simulator/screens/PosScreen.tsx';
 import { InventoryScreen } from './components/simulator/screens/InventoryScreen.tsx';
 import { AddProductScreen } from './components/simulator/screens/AddProductScreen.tsx';
-import { CustomersScreen } from './components/simulator/screens/CustomersScreen.tsx';
+import { CustomersScreenAdvanced as CustomersScreen } from './components/simulator/screens/CustomersScreenAdvanced.tsx';
 import { StatementScreen } from './components/simulator/screens/StatementScreen.tsx';
 import { ReturnsScreen } from './components/simulator/screens/ReturnsScreen.tsx';
 import { SettingsScreen } from './components/simulator/screens/SettingsScreen.tsx';
@@ -65,6 +65,30 @@ function AppContent() {
       setActiveStoreId(prefs.store_id);
     }
   }, []);
+
+  useEffect(() => {
+    if (currentScreen === 'login' || currentScreen === 'owner') return;
+    const minutes = db.getSharedPreferences().auto_lock_minutes || 5;
+    let timer = window.setTimeout(() => {
+      setScreenParams({});
+      setScreenHistory(['login']);
+      setCurrentScreen('login');
+    }, minutes * 60 * 1000);
+    const resetTimer = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        setScreenParams({});
+        setScreenHistory(['login']);
+        setCurrentScreen('login');
+      }, minutes * 60 * 1000);
+    };
+    const events: (keyof WindowEventMap)[] = ['pointerdown', 'keydown', 'touchstart'];
+    events.forEach((event) => window.addEventListener(event, resetTimer, { passive: true }));
+    return () => {
+      window.clearTimeout(timer);
+      events.forEach((event) => window.removeEventListener(event, resetTimer));
+    };
+  }, [currentScreen]);
 
   useEffect(() => {
     if (currentScreen !== 'dashboard' || !db.getSharedPreferences().cloud_store_id) return;

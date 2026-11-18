@@ -1,574 +1,65 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useEffect } from 'react';
-import {
-  ArrowRight,
-  Store,
-  Shield,
-  Fingerprint,
-  KeyRound,
-  Download,
-  Upload,
-  Mail,
-  PhoneCall,
-  MessageSquare,
-  Send,
-  CheckCircle2,
-  AlertCircle,
-  RefreshCw,
-  Moon,
-  Sun,
-} from 'lucide-react';
-import { db } from '../../../db/sqlite-simulation.ts';
-import { getSubscriptionStatus } from '../../../utils/pureLogic.ts';
-import { BiometricPromptModal } from '../BiometricPromptModal.tsx';
-import { useTheme } from '../../../context/ThemeContext.tsx';
+import React,{useEffect,useState} from 'react';
+import {ArrowRight,Store,Palette,ShoppingCart,Shield,Database,Printer,Package,Users,Headphones,Info,Download,Upload,RefreshCw,Sun,Moon,Fingerprint,KeyRound,CheckCircle2,PhoneCall,MessageSquare,Send} from 'lucide-react';
 import JSZip from 'jszip';
-import { saveBiometricCredentials, clearBiometricCredentials, createLocalBackup, shareBackupEverywhere } from '../../../utils/nativeServices.ts';
+import {db} from '../../../db/sqlite-simulation.ts';
+import {getSubscriptionStatus} from '../../../utils/pureLogic.ts';
+import {useTheme} from '../../../context/ThemeContext.tsx';
+import {saveBiometricCredentials,clearBiometricCredentials,createLocalBackup,shareBackupEverywhere} from '../../../utils/nativeServices.ts';
+import {changeMerchantPassword} from '../../../services/authService.ts';
+import {createCloudSnapshot, restoreCloudSnapshot} from '../../../services/syncService.ts';
 
-interface SettingsScreenProps {
-  storeId: number;
-  onNavigate: (screen: string, params?: Record<string, unknown>) => void;
-}
+interface Props{storeId:number;onNavigate:(screen:string,params?:Record<string,unknown>)=>void}
+const SUPPORT='+967778228995';
+const VERSION='1.4.4';
+const sections=[['general','بيانات المتجر',Store],['sales','البيع والإيصالات',ShoppingCart],['security','الأمان والدخول',Shield],['peripherals','الأجهزة الطرفية',Printer],['backup','النسخ وقاعدة البيانات',Database],['financial','الإدارة المالية والضرائب',Package],['subscription','الاشتراك والترخيص',Headphones],['about','حول التطبيق والدعم',Info],['appearance','المظهر والشاشة',Palette]] as const;
+type Section=typeof sections[number][0];
 
-const SUPPORT_PHONE = '+967778228995';
+export const SettingsScreen:React.FC<Props>=({storeId,onNavigate})=>{
+ const {isDarkMode,setDarkMode,theme}=useTheme();
+ const [section,setSection]=useState<Section>('general'); const [notice,setNotice]=useState('');
+ const [storeName,setStoreName]=useState(''); const [governorate,setGovernorate]=useState(''); const [district,setDistrict]=useState(''); const [neighborhood,setNeighborhood]=useState('');
+ const [phone,setPhone]=useState('');
+ const [currency,setCurrency]=useState('ر.ي'); const [receiptWidth,setReceiptWidth]=useState<'58'|'80'>('58'); const [receiptFooter,setReceiptFooter]=useState('شكراً لتسوقكم معنا'); const [lowStock,setLowStock]=useState(true);
+ const [biometric,setBiometric]=useState(false); const [pin,setPin]=useState('1234'); const [showPin,setShowPin]=useState(false); const [newPin,setNewPin]=useState(''); const [autoLock,setAutoLock]=useState<1|5|15|30|60>(5);
+ const [showPassword,setShowPassword]=useState(false); const [currentPassword,setCurrentPassword]=useState(''); const [password,setPassword]=useState(''); const [confirmPassword,setConfirmPassword]=useState('');
+ const [printer,setPrinter]=useState('غير مربوط'); const [barcodeSource,setBarcodeSource]=useState<'camera'|'external'>('camera');
+ const [cloudFrequency,setCloudFrequency]=useState<'manual'|'daily'|'weekly'|'shift_close'>('manual'); const [retainCount,setRetainCount]=useState('7');
+ const [taxNumber,setTaxNumber]=useState(''); const [vatEnabled,setVatEnabled]=useState(false); const [vatPercent,setVatPercent]=useState('15');
+ const [subscriptionEnd,setSubscriptionEnd]=useState(Date.now());
+ const notify=(text:string)=>{setNotice(text);window.setTimeout(()=>setNotice(''),4000)};
+ const load=()=>{const u=db.findUserById(storeId);if(u){setStoreName(u.store_name||'');setPhone(u.phone||'');setGovernorate(u.governorate||'');setDistrict(u.district||'');setNeighborhood(u.neighborhood||'');setPin(u.pin_code||'1234');setSubscriptionEnd(u.subscription_end||Date.now())}const p=db.getSharedPreferences();setCurrency(p.currency_symbol||'ر.ي');setReceiptWidth(p.receipt_width_mm||'58');setReceiptFooter(p.receipt_footer||'شكراً لتسوقكم معنا');setLowStock(p.low_stock_alerts_enabled!==false);setBiometric(!!p.biometric_enabled);setAutoLock(p.auto_lock_minutes||5);setPrinter(p.thermal_printer||'غير مربوط');setBarcodeSource(p.barcode_source||'camera');setCloudFrequency(p.cloud_backup_frequency||'manual');setRetainCount(String(p.backup_retain_count||7));setTaxNumber(p.tax_registration_number||'');setVatEnabled(!!p.vat_enabled);setVatPercent(String(p.vat_percent||15))};
+ useEffect(load,[storeId]);
+ const saveStore=(e:React.FormEvent)=>{e.preventDefault();db.updateUserProfile(storeId,{store_name:storeName.trim(),governorate:governorate.trim(),district:district.trim(),neighborhood:neighborhood.trim(),phone:phone.trim()});notify('تم حفظ تعديلات بيانات المتجر')};
+ const saveSales=()=>{db.saveSharedPreferences({currency_symbol:currency,receipt_width_mm:receiptWidth,receipt_footer:receiptFooter,low_stock_alerts_enabled:lowStock});notify('تم حفظ إعدادات البيع والإيصالات')};
+ const toggleBiometric=async()=>{if(biometric){await clearBiometricCredentials().catch(()=>undefined);setBiometric(false);db.saveSharedPreferences({biometric_enabled:false});notify('تم تعطيل البصمة');return}const pwd=window.prompt('أدخل كلمة المرور الحالية لتفعيل بصمة الدخول');if(!pwd)return;try{await saveBiometricCredentials(phone,pwd);setBiometric(true);db.saveSharedPreferences({biometric_enabled:true});notify('تم تفعيل البصمة')}catch(e){notify(e instanceof Error?e.message:'تعذر تفعيل البصمة')}};
+ const changePassword=async(e:React.FormEvent)=>{e.preventDefault();if(password.length<8){notify('كلمة المرور الجديدة 8 أحرف على الأقل');return}if(password!==confirmPassword){notify('تأكيد كلمة المرور غير مطابق');return}try{await changeMerchantPassword(phone,currentPassword,password);setShowPassword(false);setCurrentPassword('');setPassword('');setConfirmPassword('');notify('تم تغيير كلمة المرور بنجاح')}catch(e){notify(e instanceof Error?e.message:'تعذر تغيير كلمة المرور')}};
+ const changePin=(e:React.FormEvent)=>{e.preventDefault();if(!/^\d{4,6}$/.test(newPin)){notify('رمز PIN يجب أن يكون من 4 إلى 6 أرقام');return}db.updateUserProfile(storeId,{pin_code:newPin});db.saveSharedPreferences({current_pin:newPin});setPin(newPin);setNewPin('');setShowPin(false);notify('تم تغيير رمز PIN')};
+ const restore=(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=async()=>{try{if(file.name.endsWith('.json')){const parsed=JSON.parse(String(reader.result));db.restoreFromRawState(parsed.data||parsed)}else{const zip=await JSZip.loadAsync(file);const entry=zip.file('grocery_pos_database.json');if(!entry)throw new Error('الملف لا يحتوي قاعدة بيانات صالحة');const parsed=JSON.parse(await entry.async('text'));db.restoreFromRawState(parsed.data||parsed)}load();notify('تمت استعادة قاعدة البيانات بنجاح')}catch{notify('تعذرت قراءة ملف النسخة الاحتياطية')}};reader.readAsText(file)};
+ const pairPrinter=async()=>{try{if(!(navigator as any).bluetooth){notify('البلوتوث غير مدعوم في متصفح هذا الجهاز؛ استخدم طباعة Android/USB أو ماسحاً خارجياً');return}const device=await (navigator as any).bluetooth.requestDevice({acceptAllDevices:true,optionalServices:['000018f0-0000-1000-8000-00805f9b34fb']});const name=device.name||device.id||'طابعة مقترنة';setPrinter(name);db.saveSharedPreferences({thermal_printer:name});notify('تم ربط الطابعة الحرارية بنجاح')}catch(e){notify(e instanceof Error?e.message:'تم إلغاء اقتران الطابعة')}};
 
-export const SettingsScreen: React.FC<SettingsScreenProps> = ({ storeId, onNavigate }) => {
-  const { isDarkMode, toggleDarkMode, setDarkMode, theme } = useTheme();
-  const [storeName, setStoreName] = useState('');
-  const [governorate, setGovernorate] = useState('');
-  const [district, setDistrict] = useState('');
-  const [neighborhood, setNeighborhood] = useState('');
-  const [pin, setPin] = useState('1234');
-  const [biometricEnabled, setBiometricEnabled] = useState(false);
-  const [subscriptionEnd, setSubscriptionEnd] = useState(Date.now() + 60 * 24 * 60 * 60 * 1000);
-  const [currencySymbol, setCurrencySymbol] = useState('ر.ي');
-  const [receiptFooter, setReceiptFooter] = useState('شكراً لتسوقكم معنا ونسعد بخدمتكم دائماً');
-  const [receiptWidth, setReceiptWidth] = useState<'58' | '80'>('58');
-  const [lowStockAlertsEnabled, setLowStockAlertsEnabled] = useState(true);
+ const card=`rounded-2xl border p-4 space-y-4 ${theme.cardBg}`;
+ const label=`block text-xs font-bold ${theme.textPrimary}`;
+ const input=`mt-1 w-full rounded-xl border px-3 py-2.5 text-sm ${theme.inputBg}`;
+ const switchRow=(title:string,subtitle:string,value:boolean,on:()=>void)=><div className={`flex items-center justify-between rounded-xl border p-3 ${theme.secondaryBox}`}><div><p className="text-xs font-bold">{title}</p><p className={`mt-1 text-[10px] ${theme.textSecondary}`}>{subtitle}</p></div><button type="button" onClick={on} className={`relative h-7 w-12 shrink-0 rounded-full ${value?'bg-emerald-700':'bg-gray-400'}`}><span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white transition ${value?'right-0.5':'left-0.5'}`}/></button></div>;
 
-  const [showBiometricModal, setShowBiometricModal] = useState(false);
-  const [showBiometricPasswordModal, setShowBiometricPasswordModal] = useState(false);
-  const [biometricPassword, setBiometricPassword] = useState('');
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [newPinInput, setNewPinInput] = useState('');
-  const [notice, setNotice] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadSettings();
-  }, [storeId]);
-
-  const loadSettings = () => {
-    const user = db.findUserById(storeId);
-    if (user) {
-      setStoreName(user.store_name);
-      setGovernorate(user.governorate);
-      setDistrict(user.district || '');
-      setNeighborhood(user.neighborhood || '');
-      setPin(user.pin_code || '1234');
-      setSubscriptionEnd(user.subscription_end);
-    }
-    const prefs = db.getSharedPreferences();
-    setBiometricEnabled(!!prefs.biometric_enabled);
-    setCurrencySymbol(prefs.currency_symbol || 'ر.ي');
-    setReceiptFooter(prefs.receipt_footer ?? 'شكراً لتسوقكم معنا ونسعد بخدمتكم دائماً');
-    setReceiptWidth(prefs.receipt_width_mm || '58');
-    setLowStockAlertsEnabled(prefs.low_stock_alerts_enabled !== false);
-  };
-
-  const handleSaveBusinessSettings = () => {
-    db.saveSharedPreferences({
-      currency_symbol: currencySymbol.trim() || 'ر.ي',
-      receipt_footer: receiptFooter.trim(),
-      receipt_width_mm: receiptWidth,
-      low_stock_alerts_enabled: lowStockAlertsEnabled,
-    });
-    setNotice('تم حفظ العملة وتنسيق الإيصال والتنبيهات');
-    setTimeout(() => setNotice(null), 3000);
-  };
-
-  const handleUpdateStoreProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    db.updateUserProfile(storeId, {
-      store_name: storeName.trim(),
-      governorate: governorate.trim(),
-      district: district.trim(),
-      neighborhood: neighborhood.trim(),
-    });
-    setNotice('تم تحديث بيانات المتجر بنجاح!');
-    setTimeout(() => setNotice(null), 3000);
-  };
-
-  const handleBiometricToggle = async () => {
-    if (biometricEnabled) { await clearBiometricCredentials(); setBiometricEnabled(false); db.saveSharedPreferences({ biometric_enabled: false }); setNotice('تم تعطيل الدخول بالبصمة'); return; }
-    setBiometricPassword('');
-    setShowBiometricPasswordModal(true);
-  };
-
-  const handleSaveBiometricCredentials = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const user = db.findUserById(storeId);
-    if (!user || !biometricPassword) return;
-    try {
-      await saveBiometricCredentials(user.phone, biometricPassword);
-      setBiometricEnabled(true);
-      db.saveSharedPreferences({ biometric_enabled: true });
-      setNotice('تم التحقق من بصمة الهاتف وتفعيل الدخول السريع');
-      setShowBiometricPasswordModal(false);
-    } catch (e) {
-      setNotice(e instanceof Error ? e.message : 'تعذر تفعيل البصمة على هذا الجهاز');
-    } finally {
-      setBiometricPassword('');
-      setTimeout(() => setNotice(null), 4000);
-    }
-  };
-
-  const handleBiometricSuccess = () => {}; 
-
-  const handleChangePin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPinInput.trim().length >= 4) {
-      db.updateUserProfile(storeId, { pin_code: newPinInput.trim() });
-      db.saveSharedPreferences({ current_pin: newPinInput.trim() });
-      setPin(newPinInput.trim());
-      setShowPinModal(false);
-      setNewPinInput('');
-      setNotice('تم تغيير رمز الأمان (PIN) بنجاح!');
-      setTimeout(() => setNotice(null), 3000);
-    }
-  };
-
-  const handleBackupToEmail = async () => {
-    try { const message = await createLocalBackup(storeId); setNotice(message); setTimeout(() => setNotice(null), 4500); }
-    catch (e) { setNotice(e instanceof Error ? e.message : 'تعذر حفظ النسخة الاحتياطية'); }
-  };
-  const handleShareBackup = async () => { try { await shareBackupEverywhere(storeId); setNotice('تم فتح قائمة المشاركة لإرسال النسخة عبر تطبيق تختاره'); } catch (e) { setNotice(e instanceof Error ? e.message : 'تعذرت مشاركة النسخة'); } };
-
-
-  // Restore SQLite database from file
-  const handleRestoreFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const text = event.target?.result as string;
-        // If it is JSON or extracted zip
-        if (file.name.endsWith('.json')) {
-          const parsed = JSON.parse(text);
-          db.restoreFromRawState(parsed.data || parsed);
-          setNotice('تم استرجاع قاعدة البيانات بنجاح!');
-          loadSettings();
-        } else if (file.name.endsWith('.zip')) {
-          const zip = await JSZip.loadAsync(file);
-          const jsonFile = zip.file('grocery_pos_database.json');
-          if (jsonFile) {
-            const jsonText = await jsonFile.async('text');
-            const parsed = JSON.parse(jsonText);
-            db.restoreFromRawState(parsed.data || parsed);
-            setNotice('تم فك ضغط النسخة الاحتياطية واسترجاع قاعدة البيانات!');
-            loadSettings();
-          } else {
-            setNotice('الملف المضغوط لا يحتوي على بيانات صالحة');
-          }
-        }
-      } catch {
-        setNotice('فشل قراءة ملف النسخة الاحتياطية');
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const subStatus = getSubscriptionStatus(subscriptionEnd);
-  const expiryDate = new Date(subscriptionEnd).toLocaleDateString('ar-YE', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-
-  return (
-    <div className={`flex-1 flex flex-col overflow-hidden transition-colors duration-300 ${theme.screenBg}`}>
-      {/* Header */}
-      <div className="bg-[#0B3D2E] text-white p-3.5 flex items-center justify-between shadow-md">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onNavigate('dashboard')}
-            className="p-1 hover:bg-white/10 rounded-full"
-          >
-            <ArrowRight className="w-5 h-5" />
-          </button>
-          <h2 className="font-bold text-sm">الإعدادات والمظهر والنسخ الاحتياطي</h2>
-        </div>
-        <Store className="w-5 h-5 text-[#C9A961]" />
-      </div>
-
-      {notice && (
-        <div className="bg-emerald-700 text-white p-2.5 text-xs text-center font-bold flex items-center justify-center gap-1.5 animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-[#C9A961]" />
-          <span>{notice}</span>
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* 1. قسم المظهر والشاشة والوضع الداكن */}
-        <div className={`rounded-2xl p-4 border transition-colors duration-300 space-y-3 ${theme.cardBg}`}>
-          <div className="flex items-center justify-between">
-            <h3 className={`font-bold text-xs ${isDarkMode ? 'text-[#C9A961]' : 'text-[#0B3D2E]'} flex items-center gap-1.5`}>
-              {isDarkMode ? <Moon className="w-4 h-4 text-[#C9A961]" /> : <Sun className="w-4 h-4 text-amber-500" />}
-              <span>المظهر والشاشة (Dark Mode)</span>
-            </h3>
-            <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                isDarkMode
-                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                  : 'bg-amber-100 text-amber-900 border border-amber-200'
-              }`}
-            >
-              {isDarkMode ? 'الوضع الداكن مفعّل 🌙' : 'الوضع الفاتح مفعّل ☀️'}
-            </span>
-          </div>
-
-          <div className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${theme.secondaryBox}`}>
-            <div className="flex items-center gap-2.5">
-              <div
-                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                  isDarkMode ? 'bg-emerald-950 text-[#C9A961]' : 'bg-amber-50 text-amber-600'
-                }`}
-              >
-                {isDarkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-              </div>
-              <div>
-                <p className={`font-bold text-xs ${theme.textPrimary}`}>الوضع الداكن المريح للعين</p>
-                <p className={`text-[10px] ${theme.textSecondary}`}>
-                  تقليل إجهاد العين أثناء العمل ليلاً وتوفير طاقة بطارية الهاتف
-                </p>
-              </div>
-            </div>
-
-            {/* Switch Toggle Button */}
-            <button
-              type="button"
-              onClick={toggleDarkMode}
-              className={`w-14 h-7 rounded-full transition-colors relative p-0.5 focus:outline-none ${
-                isDarkMode ? 'bg-[#0B3D2E] border border-[#C9A961]/40' : 'bg-gray-300'
-              }`}
-              title="تبديل الوضع الداكن / الفاتح"
-            >
-              <div
-                className={`w-6 h-6 rounded-full bg-white shadow-md flex items-center justify-center transition-transform duration-300 ${
-                  isDarkMode ? 'translate-x-[-1.75rem] bg-[#FAF8F3]' : 'translate-x-0'
-                }`}
-              >
-                {isDarkMode ? (
-                  <Moon className="w-3.5 h-3.5 text-[#0B3D2E]" />
-                ) : (
-                  <Sun className="w-3.5 h-3.5 text-amber-500" />
-                )}
-              </div>
-            </button>
-          </div>
-
-          {/* Quick Dual Switch Buttons */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => setDarkMode(false)}
-              className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition ${
-                !isDarkMode
-                  ? 'bg-[#0B3D2E] text-white border-[#0B3D2E] shadow-xs'
-                  : 'bg-[#141F1A] text-gray-300 border-emerald-900/40 hover:bg-[#1a2822]'
-              }`}
-            >
-              <Sun className="w-3.5 h-3.5 text-amber-400" />
-              <span>الوضع الفاتح (نهاري)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setDarkMode(true)}
-              className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition ${
-                isDarkMode
-                  ? 'bg-[#C9A961] text-[#0B3D2E] border-[#C9A961] font-black shadow-xs'
-                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              <Moon className="w-3.5 h-3.5" />
-              <span>الوضع الداكن (ليلي)</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 2. قسم بيانات المتجر */}
-        <div className={`rounded-2xl p-4 border transition-colors duration-300 ${theme.cardBg}`}>
-          <h3 className={`font-bold text-xs ${isDarkMode ? 'text-[#C9A961]' : 'text-[#0B3D2E]'} flex items-center gap-1.5 mb-3`}>
-            <Store className="w-4 h-4 text-[#C9A961]" />
-            <span>بيانات المتجر</span>
-          </h3>
-
-          <form onSubmit={handleUpdateStoreProfile} className="space-y-3">
-            <div>
-              <label className={`block text-[11px] font-bold mb-1 ${theme.textSecondary}`}>اسم البقالة:</label>
-              <input
-                type="text"
-                value={storeName}
-                onChange={(e) => setStoreName(e.target.value)}
-                className={`w-full rounded-xl px-3 py-2 text-xs border ${theme.inputBg}`}
-                required
-              />
-            </div>
-            <div>
-              <label className={`block text-[11px] font-bold mb-1 ${theme.textSecondary}`}>المحافظة:</label>
-              <input
-                type="text"
-                value={governorate}
-                onChange={(e) => setGovernorate(e.target.value)}
-                className={`w-full rounded-xl px-3 py-2 text-xs border ${theme.inputBg}`}
-                required
-              />
-            </div>
-            <div><label className={`block text-[11px] font-bold mb-1 ${theme.textSecondary}`}>المديرية:</label><input type="text" value={district} onChange={e=>setDistrict(e.target.value)} className={`w-full rounded-xl px-3 py-2 text-xs border ${theme.inputBg}`} required /></div>
-            <div><label className={`block text-[11px] font-bold mb-1 ${theme.textSecondary}`}>الحارة:</label><input type="text" value={neighborhood} onChange={e=>setNeighborhood(e.target.value)} className={`w-full rounded-xl px-3 py-2 text-xs border ${theme.inputBg}`} required /></div>
-            <button
-              type="submit"
-              className="w-full bg-[#0B3D2E] hover:bg-[#06231A] text-white py-2 rounded-xl text-xs font-bold transition shadow-xs"
-            >
-              حفظ التعديلات
-            </button>
-          </form>
-        </div>
-
-        {/* 3. إعدادات البيع والإيصالات */}
-        <div className={`rounded-2xl p-4 border transition-colors duration-300 space-y-3 ${theme.cardBg}`}>
-          <h3 className={`font-bold text-xs ${isDarkMode ? 'text-[#C9A961]' : 'text-[#0B3D2E]'}`}>إعدادات البيع والإيصالات</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <label className={`text-[11px] font-bold ${theme.textSecondary}`}>رمز العملة
-              <select value={currencySymbol} onChange={e => setCurrencySymbol(e.target.value)} className={`mt-1 w-full rounded-xl border px-2 py-2 text-xs ${theme.inputBg}`}>
-                <option value="ر.ي">الريال اليمني (ر.ي)</option><option value="ر.س">الريال السعودي (ر.س)</option><option value="$">الدولار الأمريكي ($)</option><option value="ر.ع">الريال العماني (ر.ع)</option>
-              </select>
-            </label>
-            <label className={`text-[11px] font-bold ${theme.textSecondary}`}>عرض الإيصال الحراري
-              <select value={receiptWidth} onChange={e => setReceiptWidth(e.target.value as '58' | '80')} className={`mt-1 w-full rounded-xl border px-2 py-2 text-xs ${theme.inputBg}`}><option value="58">58 مم</option><option value="80">80 مم</option></select>
-            </label>
-          </div>
-          <label className={`block text-[11px] font-bold ${theme.textSecondary}`}>عبارة أسفل الفاتورة
-            <textarea value={receiptFooter} onChange={e => setReceiptFooter(e.target.value)} maxLength={120} rows={2} placeholder="مثال: شكراً لزيارتكم" className={`mt-1 w-full resize-y rounded-xl border px-3 py-2 text-xs ${theme.inputBg}`} />
-          </label>
-          <label className={`flex items-center justify-between rounded-xl border p-3 ${theme.secondaryBox}`}><span className={`text-xs font-bold ${theme.textPrimary}`}>إظهار تنبيهات انخفاض المخزون</span><input type="checkbox" checked={lowStockAlertsEnabled} onChange={e => setLowStockAlertsEnabled(e.target.checked)} className="h-4 w-4 accent-emerald-700" /></label>
-          <button type="button" onClick={handleSaveBusinessSettings} className="w-full rounded-xl bg-[#0B3D2E] py-2 text-xs font-bold text-white">حفظ إعدادات البيع والإيصالات</button>
-        </div>
-
-        {/* 3. قسم الأمان والحماية */}
-        <div className={`rounded-2xl p-4 border transition-colors duration-300 space-y-3 ${theme.cardBg}`}>
-          <h3 className={`font-bold text-xs ${isDarkMode ? 'text-[#C9A961]' : 'text-[#0B3D2E]'} flex items-center gap-1.5`}>
-            <Shield className="w-4 h-4 text-[#C9A961]" />
-            <span>الأمان والحماية</span>
-          </h3>
-
-          {/* Biometrics Toggle */}
-          <div className={`flex items-center justify-between p-2.5 rounded-xl border ${theme.secondaryBox}`}>
-            <div className="flex items-center gap-2">
-              <Fingerprint className="w-5 h-5 text-[#C9A961]" />
-              <div>
-                <p className={`font-bold text-xs ${theme.textPrimary}`}>تفعيل البصمة (Biometric)</p>
-                <p className={`text-[10px] ${theme.textSecondary}`}>حماية الدخول بالبصمة البيومترية</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleBiometricToggle}
-              className={`w-12 h-6 rounded-full transition-colors relative ${
-                biometricEnabled ? 'bg-[#0B3D2E]' : 'bg-gray-400'
-              }`}
-            >
-              <div
-                className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${
-                  biometricEnabled ? 'right-6' : 'right-0.5'
-                }`}
-              />
-            </button>
-          </div>
-
-          {/* Change PIN button */}
-          <div className={`flex items-center justify-between p-2.5 rounded-xl border ${theme.secondaryBox}`}>
-            <div className="flex items-center gap-2">
-              <KeyRound className="w-5 h-5 text-[#C9A961]" />
-              <div>
-                <p className={`font-bold text-xs ${theme.textPrimary}`}>رمز الأمان السري (PIN)</p>
-                <p className={`text-[10px] ${theme.textSecondary} font-mono`}>الرمز الحالي: {pin.replace(/./g, '•')}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowPinModal(true)}
-              className={`text-xs border font-bold px-3 py-1.5 rounded-lg transition ${
-                isDarkMode ? 'bg-[#141F1A] border-emerald-800 text-gray-200 hover:bg-[#1a2822]' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              تغيير
-            </button>
-          </div>
-        </div>
-
-        {/* 4. قسم النسخ الاحتياطي والاسترجاع */}
-        <div className={`rounded-2xl p-4 border transition-colors duration-300 space-y-3 ${theme.cardBg}`}>
-          <h3 className={`font-bold text-xs ${isDarkMode ? 'text-[#C9A961]' : 'text-[#0B3D2E]'} flex items-center gap-1.5`}>
-            <Download className="w-4 h-4 text-[#C9A961]" />
-            <span>النسخ الاحتياطي لقاعدة البيانات</span>
-          </h3>
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={handleBackupToEmail}
-              className={`p-3 border rounded-xl text-center flex flex-col items-center transition ${
-                isDarkMode ? 'bg-emerald-950/40 hover:bg-emerald-950/70 border-emerald-800/80' : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300'
-              }`}
-            >
-              <Download className="w-5 h-5 text-[#C9A961] mb-1" />
-              <span className={`font-bold text-xs ${theme.textPrimary}`}>حفظ نسخة على الهاتف</span>
-              <span className={`text-[9px] ${theme.textSecondary}`}>حفظ ZIP مؤرّخ في مجلد التطبيق</span>
-            </button>
-
-            <label
-              className={`p-3 border rounded-xl text-center flex flex-col items-center cursor-pointer transition ${
-                isDarkMode ? 'bg-blue-950/40 hover:bg-blue-950/70 border-blue-800/80' : 'bg-blue-50 hover:bg-blue-100 border-blue-300'
-              }`}
-            >
-              <Upload className="w-5 h-5 text-blue-400 mb-1" />
-              <span className={`font-bold text-xs ${theme.textPrimary}`}>استرجاع من ملف</span>
-              <span className={`text-[9px] ${theme.textSecondary}`}>رفع .zip أو .json</span>
-              <input
-                type="file"
-                accept=".zip,.json"
-                onChange={handleRestoreFile}
-                className="hidden"
-              />
-            </label>
-          </div>
-          <button onClick={handleShareBackup} className="w-full p-2.5 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 font-bold text-xs">مشاركة نسخة احتياطية عبر تطبيق آخر</button>
-
-          <button
-            onClick={() => {
-              if (confirm('سيتم حذف جميع بيانات المتجر المحلية (المنتجات والعملاء والفواتير والمصروفات) من هذا الجهاز. تأكد من حفظ نسخة احتياطية قبل المتابعة. هل تريد المتابعة؟')) {
-                db.resetToDefaults();
-                loadSettings();
-                setNotice('تم مسح بيانات المتجر المحلية وإعادة ضبط التطبيق');
-              }
-            }}
-            className="w-full text-center text-[11px] text-gray-400 hover:text-red-400 font-semibold py-1 flex items-center justify-center gap-1 transition"
-          >
-            <RefreshCw className="w-3 h-3" />
-            <span>مسح بيانات المتجر من هذا الجهاز</span>
-          </button>
-        </div>
-
-        {/* 5. قسم الاشتراك والدعم الفني */}
-        <div className={`rounded-2xl p-4 border transition-colors duration-300 space-y-3 ${theme.cardBg}`}>
-          <div className="flex justify-between items-center">
-            <h3 className={`font-bold text-xs ${isDarkMode ? 'text-[#C9A961]' : 'text-[#0B3D2E]'}`}>حالة الاشتراك والترخيص</h3>
-            <span
-              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                subStatus.isExpired
-                  ? 'bg-red-950 text-red-300 border border-red-800'
-                  : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-              }`}
-            >
-              {subStatus.isExpired ? 'منتهي' : `نشط (متبقي ${subStatus.daysRemaining} يوم)`}
-            </span>
-          </div>
-
-          <p className={`text-xs ${theme.textSecondary}`}>
-            تاريخ انتهاء الاشتراك: <span className={`font-bold ${theme.textPrimary}`}>{expiryDate}</span>
-          </p>
-
-          <div className={`p-3 rounded-xl border space-y-2 ${theme.secondaryBox}`}>
-            <p className={`text-[11px] font-bold ${theme.textSecondary}`}>تجديد الاشتراك والتواصل المباشر:</p>
-            <div className="grid grid-cols-3 gap-1.5">
-              <a
-                href={`tel:${SUPPORT_PHONE}`}
-                className="p-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-center text-xs font-bold flex items-center justify-center gap-1 transition"
-              >
-                <PhoneCall className="w-3.5 h-3.5" />
-                <span>اتصال</span>
-              </a>
-
-              <a
-                href={`https://api.whatsapp.com/send?phone=${SUPPORT_PHONE}&text=${encodeURIComponent(
-                  'أهلاً، أريد تجديد اشتراك تطبيق إدارة البقالة للمتجر: ' + storeName
-                )}`}
-                target="_blank"
-                rel="noreferrer"
-                className="p-2 bg-[#25D366] hover:bg-[#20ba59] text-white rounded-xl text-center text-xs font-bold flex items-center justify-center gap-1 transition"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>واتساب</span>
-              </a>
-
-              <a
-                href={`sms:${SUPPORT_PHONE}?body=${encodeURIComponent('طلب تجديد اشتراك تطبيق البقالة')}`}
-                className="p-2 bg-gray-800 hover:bg-black text-white rounded-xl text-center text-xs font-bold flex items-center justify-center gap-1 transition"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>SMS</span>
-              </a>
-            </div>
-            <p className="text-[10px] text-gray-500 text-center font-mono">{SUPPORT_PHONE}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Change PIN Modal */}
-      {showPinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className={`rounded-3xl w-full max-w-xs p-5 shadow-2xl border border-[#C9A961] space-y-3 ${isDarkMode ? 'bg-[#18221E] text-white' : 'bg-[#FAF8F3] text-gray-900'}`}>
-            <h3 className="font-bold text-sm text-[#C9A961]">تغيير رمز الأمان (PIN)</h3>
-            <form onSubmit={handleChangePin} className="space-y-3">
-              <input
-                type="password"
-                maxLength={4}
-                placeholder="أدخل 4 أرقام جديدة"
-                value={newPinInput}
-                onChange={(e) => setNewPinInput(e.target.value)}
-                autoFocus
-                className={`w-full text-center text-lg font-mono tracking-widest border rounded-xl p-2.5 ${theme.inputBg}`}
-                required
-              />
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  className="flex-1 bg-[#0B3D2E] text-white py-2 rounded-xl text-xs font-bold hover:bg-[#06231A]"
-                >
-                  حفظ الرمز
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPinModal(false)}
-                  className={`px-3 py-2 border rounded-xl text-xs font-bold transition ${isDarkMode ? 'border-emerald-800 text-gray-300 hover:bg-[#121B17]' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
-                >
-                  إلغاء
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-      {showBiometricPasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className={`rounded-3xl w-full max-w-xs p-5 shadow-2xl border border-[#C9A961] space-y-3 ${isDarkMode ? 'bg-[#18221E] text-white' : 'bg-[#FAF8F3] text-gray-900'}`}>
-            <h3 className="font-bold text-sm text-[#C9A961]">تفعيل الدخول بالبصمة</h3>
-            <p className={`text-xs ${theme.textSecondary}`}>أدخل كلمة المرور الحالية لحفظ بيانات الدخول في مخزن Android الآمن.</p>
-            <form onSubmit={handleSaveBiometricCredentials} className="space-y-3">
-              <input type="password" autoComplete="current-password" value={biometricPassword} onChange={e => setBiometricPassword(e.target.value)} placeholder="كلمة المرور الحالية" className={`w-full border rounded-xl p-3 text-sm ${theme.inputBg}`} required autoFocus />
-              <div className="flex gap-2">
-                <button type="submit" className="flex-1 bg-[#0B3D2E] text-white py-2.5 rounded-xl text-xs font-bold">حفظ وتفعيل</button>
-                <button type="button" onClick={() => { setShowBiometricPasswordModal(false); setBiometricPassword(''); }} className={`px-3 py-2 border rounded-xl text-xs font-bold ${theme.borderColor}`}>إلغاء</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+ return <div className={`flex-1 flex flex-col overflow-hidden ${theme.screenBg}`}>
+  <header className="flex items-center justify-between bg-[#0B3D2E] p-3.5 text-white"><div className="flex items-center gap-2"><button onClick={()=>onNavigate('dashboard')} aria-label="رجوع"><ArrowRight className="h-5 w-5"/></button><div><h1 className="text-sm font-bold">الإعدادات والمظهر والنسخ الاحتياطي</h1><p className="mt-0.5 text-[10px] text-emerald-100">حالة المتجر: نشط ومتاح للعمل</p></div></div><span className="rounded-full border border-emerald-300/50 bg-white/10 px-2 py-1 text-[10px]">نشط</span></header>
+  {notice&&<div role="status" className="flex items-center justify-center gap-1.5 bg-emerald-700 px-3 py-2 text-xs font-bold text-white"><CheckCircle2 className="h-4 w-4"/>{notice}</div>}
+  <div className="flex min-h-0 flex-1">
+   <aside className={`w-[170px] shrink-0 overflow-y-auto border-l p-2 ${theme.cardBg} ${theme.borderColor}`}>{sections.map(([id,title,Icon])=><button key={id} onClick={()=>setSection(id)} className={`mb-1 flex w-full items-center gap-2 rounded-xl px-2.5 py-3 text-right text-xs font-bold ${section===id?'bg-emerald-700 text-white':''}`}><Icon className="h-4 w-4 shrink-0"/><span>{title}</span></button>)}</aside>
+   <main className="flex-1 overflow-y-auto p-4 space-y-4">
+    {section==='general'&&<div className={card}><h2 className="text-sm font-bold">بيانات المتجر</h2><form onSubmit={e=>{e.preventDefault();saveStore(e)}} className="grid gap-3 sm:grid-cols-2"><label className={label}>اسم البقالة / المتجر<input value={storeName} onChange={e=>setStoreName(e.target.value)} required className={input}/></label><label className={label}>رقم هاتف المتجر<input value={phone} onChange={e=>setPhone(e.target.value)} dir="ltr" className={input}/></label><label className={label}>المحافظة<input value={governorate} onChange={e=>setGovernorate(e.target.value)} className={input}/></label><label className={label}>المديرية<input value={district} onChange={e=>setDistrict(e.target.value)} className={input}/></label><label className={`${label} sm:col-span-2`}>الحارة / الشارع<input value={neighborhood} onChange={e=>setNeighborhood(e.target.value)} className={input}/></label><button className="sm:col-span-2 rounded-xl bg-emerald-700 py-3 text-xs font-bold text-white">حفظ التعديلات</button></form></div>}
+    {section==='appearance'&&<div className={card}><h2 className="text-sm font-bold">المظهر والشاشة</h2><div className="grid grid-cols-2 gap-3"><button onClick={()=>setDarkMode(false)} className={`rounded-xl border p-5 text-xs font-bold ${!isDarkMode?'bg-emerald-700 text-white':''}`}><Sun className="mx-auto mb-2 h-5 w-5"/>الوضع الفاتح</button><button onClick={()=>setDarkMode(true)} className={`rounded-xl border p-5 text-xs font-bold ${isDarkMode?'bg-emerald-700 text-white':''}`}><Moon className="mx-auto mb-2 h-5 w-5"/>الوضع الداكن</button></div></div>}
+    {section==='sales'&&<div className={card}><h2 className="text-sm font-bold">إعدادات البيع والإيصالات</h2><div className="grid gap-3 sm:grid-cols-2"><label className={label}>رمز العملة<select value={currency} onChange={e=>setCurrency(e.target.value)} className={input}><option>ر.ي</option><option>ر.س</option><option>$</option><option>ر.ع</option></select></label><label className={label}>عرض الإيصال الحراري<select value={receiptWidth} onChange={e=>setReceiptWidth(e.target.value as '58'|'80')} className={input}><option value="58">58 مم</option><option value="80">80 مم</option></select></label><label className={`${label} sm:col-span-2`}>عبارة أسفل الفاتورة<textarea value={receiptFooter} onChange={e=>setReceiptFooter(e.target.value)} maxLength={120} rows={3} className={input}/></label></div>{switchRow('إظهار تنبيهات انخفاض المخزون','تنبيه عند اقتراب نفاد المنتجات',lowStock,()=>setLowStock(v=>!v))}<button onClick={saveSales} className="w-full rounded-xl bg-emerald-700 py-3 text-xs font-bold text-white">حفظ إعدادات البيع والإيصالات</button></div>}
+    {section==='security'&&<div className={card}><h2 className="text-sm font-bold">الأمان وحماية الدخول</h2><button onClick={()=>setShowPassword(true)} className="w-full rounded-xl border p-3 text-right text-xs font-bold">تغيير كلمة المرور</button>{switchRow('تفعيل البصمة (Biometric)','حماية الدخول والتأكيدات الحساسة',biometric,toggleBiometric)}<button onClick={()=>setShowPin(true)} className="w-full rounded-xl border p-3 text-right text-xs font-bold flex justify-between"><span>رمز الأمان السري (PIN)</span><span className="text-gray-500">تغيير</span></button><label className={label}>القفل التلقائي<select value={autoLock} onChange={e=>{const v=Number(e.target.value) as 1|5|15|30|60;setAutoLock(v);db.saveSharedPreferences({auto_lock_minutes:v})}} className={input}><option value={1}>بعد دقيقة واحدة</option><option value={5}>بعد 5 دقائق</option><option value={15}>بعد 15 دقيقة</option><option value={30}>بعد 30 دقيقة</option><option value={60}>بعد ساعة</option></select></label></div>}
+    {section==='peripherals'&&<div className={card}><h2 className="text-sm font-bold">الأجهزة الطرفية</h2><div className="rounded-xl border p-3"><p className="text-xs font-bold">ربط الطابعة الحرارية</p><p className="mt-1 text-[10px] text-gray-500">الطابعة الحالية: {printer}</p><button onClick={pairPrinter} className="mt-3 w-full rounded-xl bg-emerald-700 py-2.5 text-xs font-bold text-white">البحث واقتران طابعة بلوتوث/USB</button></div><label className={label}>إعدادات ماسح الباركود<select value={barcodeSource} onChange={e=>{const v=e.target.value as 'camera'|'external';setBarcodeSource(v);db.saveSharedPreferences({barcode_source:v})}} className={input}><option value="camera">كاميرا الهاتف</option><option value="external">ماسح خارجي</option></select></label></div>}
+    {section==='backup'&&<div className={card}><h2 className="text-sm font-bold">النسخ الاحتياطي وقاعدة البيانات</h2><div className="grid gap-2 sm:grid-cols-3"><button onClick={async()=>{try{notify(await createLocalBackup(storeId))}catch(e){notify(e instanceof Error?e.message:'تعذر حفظ النسخة')}}} className="rounded-xl border p-3 text-xs font-bold"><Download className="mx-auto mb-2 h-5 w-5"/>حفظ نسخة على الهاتف</button><label className="cursor-pointer rounded-xl border p-3 text-center text-xs font-bold"><Upload className="mx-auto mb-2 h-5 w-5"/>استرجاع من ملف<input type="file" accept=".zip,.json" onChange={restore} className="hidden"/></label><button onClick={async()=>{try{await shareBackupEverywhere(storeId);notify('تم فتح مشاركة النسخة')}catch(e){notify(e instanceof Error?e.message:'تعذرت المشاركة')}}} className="rounded-xl border p-3 text-xs font-bold"><Send className="mx-auto mb-2 h-5 w-5"/>مشاركة نسخة احتياطية</button></div><div className="grid grid-cols-2 gap-2"><button onClick={async()=>{try{const r=await createCloudSnapshot();notify(`تم نسخ بياناتي سحابياً: ${r.recordCount} سجل في النسخة ${r.createdAt.slice(0,10)}`)}catch(e){notify(e instanceof Error?e.message:'تعذر نسخ البيانات سحابياً')}}} className="rounded-xl border border-emerald-300 bg-emerald-50 px-2 py-3 text-xs font-bold text-emerald-800">نسخ بياناتي سحابياً</button><button onClick={async()=>{try{const r=await restoreCloudSnapshot();notify(`تمت استعادة بياناتي السحابية: ${r.recordCount} سجل من النسخة ${r.createdAt.slice(0,10)}`)}catch(e){notify(e instanceof Error?e.message:'تعذر استعادة البيانات السحابية')}}} className="rounded-xl border border-blue-300 bg-blue-50 px-2 py-3 text-xs font-bold text-blue-800">استعادة بياناتي سحابياً</button></div><label className={label}>تكرار النسخ السحابي التلقائي<select value={cloudFrequency} onChange={e=>{const v=e.target.value as typeof cloudFrequency;setCloudFrequency(v);db.saveSharedPreferences({cloud_backup_frequency:v})}} className={input}><option value="manual">متوقف (يدوي فقط)</option><option value="daily">يومياً تلقائياً</option><option value="weekly">أسبوعياً</option><option value="shift_close">بعد كل إغلاق وردية</option></select></label><label className={label}>عدد النسخ المحلية للاحتفاظ بها<input type="number" min="1" value={retainCount} onChange={e=>{setRetainCount(e.target.value);db.saveSharedPreferences({backup_retain_count:Number(e.target.value)||7})}} className={input}/></label><button onClick={()=>{if(confirm('تحذير نهائي: سيتم حذف كافة بيانات المتجر المحلية من هذا الجهاز ولا يمكن التراجع. هل تريد المتابعة؟')){db.resetToDefaults();load();notify('تم مسح بيانات المتجر المحلية')}}} className="w-full rounded-xl border border-red-300 bg-red-50 py-3 text-xs font-bold text-red-700">مسح بيانات المتجر من هذا الجهاز</button></div>}
+    {section==='financial'&&<div className={card}><h2 className="text-sm font-bold">الإدارة المالية والضرائب</h2><label className={label}>الرقم الضريبي / السجل التجاري<input value={taxNumber} onChange={e=>setTaxNumber(e.target.value)} placeholder="أدخل الرقم الرسمي" className={input}/></label>{switchRow('تفعيل الضريبة النسبية (VAT)','إضافة الضريبة إلى الفواتير المحسوبة',vatEnabled,()=>setVatEnabled(v=>!v))}<label className={label}>نسبة الضريبة %<input type="number" min="0" max="100" value={vatPercent} onChange={e=>setVatPercent(e.target.value)} className={input}/></label><button onClick={()=>{db.saveSharedPreferences({tax_registration_number:taxNumber.trim(),vat_enabled:vatEnabled,vat_percent:Number(vatPercent)||0});notify('تم حفظ إعدادات الضريبة والرقم الرسمي')}} className="w-full rounded-xl bg-emerald-700 py-3 text-xs font-bold text-white">حفظ إعدادات الإدارة المالية</button></div>}
+    {section==='subscription'&&<div className={card}><h2 className="text-sm font-bold">حالة الاشتراك والترخيص</h2><p className="text-xs">الحالة الحالية: <b>{getSubscriptionStatus(subscriptionEnd).isExpired?'منتهي':'نشط'}</b></p><p className="text-xs">تاريخ الانتهاء: <b>{new Date(subscriptionEnd).toLocaleDateString('ar-YE')}</b></p><div className="grid grid-cols-3 gap-2"><a href={`tel:${SUPPORT}`} className="rounded-xl bg-emerald-700 p-3 text-center text-xs font-bold text-white"><PhoneCall className="mx-auto mb-1 h-4 w-4"/>اتصال</a><a href={`https://wa.me/${SUPPORT.replace('+','')}?text=${encodeURIComponent('أريد تجديد اشتراك متجري')}`} target="_blank" className="rounded-xl bg-[#25D366] p-3 text-center text-xs font-bold text-white"><MessageSquare className="mx-auto mb-1 h-4 w-4"/>واتساب</a><a href={`sms:${SUPPORT}`} className="rounded-xl bg-slate-700 p-3 text-center text-xs font-bold text-white"><Send className="mx-auto mb-1 h-4 w-4"/>SMS</a></div><p className="text-center text-xs" dir="ltr">{SUPPORT}</p></div>}
+    {section==='about'&&<div className={card}><h2 className="text-sm font-bold">حول التطبيق والدعم</h2><p className="text-xs">رقم إصدار التطبيق الحالي: <b>{VERSION}</b></p><div className="grid gap-2"><button onClick={()=>notify('سيفتح دليل الاستخدام الكامل في إصدار النشر')} className="rounded-xl border p-3 text-right text-xs font-bold">دليل الاستخدام</button><button onClick={()=>notify('سيتم فتح سياسة الخصوصية الرسمية عند نشر التطبيق')} className="rounded-xl border p-3 text-right text-xs font-bold">سياسة الخصوصية</button><a href={`https://wa.me/${SUPPORT.replace('+','')}?text=${encodeURIComponent('طلب دعم فني لتطبيق بقالتي برو')}`} target="_blank" className="rounded-xl border p-3 text-xs font-bold">التواصل مع الدعم الفني للمنصة</a></div></div>}
+   </main>
+  </div>
+  {showPin&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"><form onSubmit={changePin} className={`${theme.cardBg} w-full max-w-sm rounded-2xl p-5 space-y-3`}><h3 className="font-bold">تغيير رمز PIN</h3><input type="password" inputMode="numeric" maxLength={6} value={newPin} onChange={e=>setNewPin(e.target.value)} placeholder="4 إلى 6 أرقام" className={input} required/><div className="grid grid-cols-2 gap-2"><button className="rounded-xl bg-emerald-700 py-2.5 text-xs font-bold text-white">حفظ</button><button type="button" onClick={()=>setShowPin(false)} className="rounded-xl border py-2.5 text-xs">إلغاء</button></div></form></div>}
+  {showPassword&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"><form onSubmit={changePassword} className={`${theme.cardBg} w-full max-w-sm rounded-2xl p-5 space-y-3`}><h3 className="font-bold">تغيير كلمة المرور</h3><input type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} placeholder="كلمة المرور الحالية" className={input} required/><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="كلمة المرور الجديدة" className={input} required/><input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="تأكيد كلمة المرور الجديدة" className={input} required/><div className="grid grid-cols-2 gap-2"><button className="rounded-xl bg-emerald-700 py-2.5 text-xs font-bold text-white">تغيير</button><button type="button" onClick={()=>setShowPassword(false)} className="rounded-xl border py-2.5 text-xs">إلغاء</button></div></form></div>}
+ </div>;
 };

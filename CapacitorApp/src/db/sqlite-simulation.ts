@@ -4,7 +4,7 @@
  */
 
 import { Capacitor } from '@capacitor/core';
-import { User, Product, Customer, Sale, SaleItem, ReturnItem, SubscriptionPackage, SharedPreferences, ParkedSale, Expense } from '../types/index.ts';
+import { User, Product, Customer, CustomerPayment, CustomerLedgerEntry, CustomerPaymentPlan, CustomerCommunication, CustomerMergeRecord, DrawerShift, Sale, SaleItem, ReturnItem, SubscriptionPackage, SharedPreferences, ParkedSale, Expense } from '../types/index.ts';
 import { calculateZReportBreakdown } from '../utils/pureLogic.ts';
 import { NativeSqliteStore } from './NativeSqliteStore.ts';
 
@@ -29,6 +29,12 @@ export interface DatabaseState {
   subscription_packages: SubscriptionPackage[];
   parked_sales?: ParkedSale[];
   expenses?: Expense[];
+  customer_payments?: CustomerPayment[];
+  customer_ledger?: CustomerLedgerEntry[];
+  customer_payment_plans?: CustomerPaymentPlan[];
+  customer_communications?: CustomerCommunication[];
+  customer_merge_records?: CustomerMergeRecord[];
+  drawer_shifts?: DrawerShift[];
   quick_products?: { store_id: number; product_id: number; sync_id?: string }[];
 }
 
@@ -103,6 +109,12 @@ class SQLiteDatabaseHelper {
       subscription_packages: parsed.subscription_packages || [],
       parked_sales: parsed.parked_sales || [],
       expenses: parsed.expenses || [],
+      customer_payments: parsed.customer_payments || [],
+      customer_ledger: parsed.customer_ledger || [],
+      customer_payment_plans: parsed.customer_payment_plans || [],
+      customer_communications: parsed.customer_communications || [],
+      customer_merge_records: parsed.customer_merge_records || [],
+      drawer_shifts: parsed.drawer_shifts || [],
       quick_products: parsed.quick_products || [],
     };
   }
@@ -138,6 +150,12 @@ class SQLiteDatabaseHelper {
       subscription_packages: INITIAL_PACKAGES,
       parked_sales: [],
       expenses: [],
+      customer_payments: [],
+      customer_ledger: [],
+      customer_payment_plans: [],
+      customer_communications: [],
+      customer_merge_records: [],
+      drawer_shifts: [],
       quick_products: [],
     };
     this.persist(defaultState);
@@ -146,7 +164,7 @@ class SQLiteDatabaseHelper {
 
   private persist(state: DatabaseState) {
     const previous = this.state as DatabaseState | undefined;
-    const syncCollections = ['products', 'customers', 'sales', 'sale_items', 'returns', 'expenses', 'quick_products'] as const;
+    const syncCollections = ['products', 'customers', 'sales', 'sale_items', 'returns', 'expenses', 'customer_payments', 'customer_ledger', 'customer_payment_plans', 'customer_communications', 'customer_merge_records', 'drawer_shifts', 'quick_products'] as const;
     const timestamp = new Date().toISOString();
     for (const collection of syncCollections) {
       const nextRows = (state[collection] || []) as Array<Record<string, unknown>>;
@@ -195,6 +213,12 @@ class SQLiteDatabaseHelper {
       subscription_packages: [],
       parked_sales: [],
       expenses: [],
+      customer_payments: [],
+      customer_ledger: [],
+      customer_payment_plans: [],
+      customer_communications: [],
+      customer_merge_records: [],
+      drawer_shifts: [],
       quick_products: [],
     };
     this.persist(defaultState);
@@ -372,17 +396,46 @@ class SQLiteDatabaseHelper {
     );
   }
 
-  public insertCustomer(store_id: number, name: string, phone: string, initialDebt = 0): Customer {
+  public insertCustomer(store_id: number, name: string, phone: string, initialDebt = 0, details: Partial<Customer> = {}): Customer {
+    const cleanName = name.trim();
+    const cleanPhone = phone.trim();
+    if (!cleanName) throw new Error('اسم العميل مطلوب');
+    if (cleanPhone && this.state.customers.some((c) => c.store_id === store_id && c.phone.trim() === cleanPhone)) {
+      throw new Error('يوجد عميل مسجل بنفس رقم الهاتف');
+    }
+    if (cleanName && this.state.customers.some((c) => c.store_id === store_id && c.name.trim().toLowerCase() === cleanName.toLowerCase())) {
+      throw new Error('يوجد عميل مسجل بهذا الاسم');
+    }
+    const opening = Number.isFinite(initialDebt) ? Math.max(0, initialDebt) : 0;
+    const limit = Number.isFinite(details.credit_limit) ? Math.max(0, Number(details.credit_limit)) : 50000;
     const newId = this.state.customers.length ? Math.max(...this.state.customers.map((c) => c.id)) + 1 : 1;
+    const now = new Date().toISOString();
     const newCust: Customer = {
-      id: newId,
-      store_id,
-      name,
-      phone,
-      total_debt: initialDebt,
+      id: newId, store_id, name: cleanName, phone: cleanPhone, total_debt: opening,
+      credit_limit: limit,
+      phone_secondary: details.phone_secondary?.trim() || '',
+      address: details.address?.trim() || '',
+      image_url: details.image_url || '',
+      notes: details.notes?.trim() || '',
+      category: details.category || 'جديد',
+      status: 'active',
+      credit_warning_percent: details.credit_warning_percent || 80,
+      allow_credit_override: details.allow_credit_override || false,
+      payment_term_days: details.payment_term_days || 30,
+      opening_balance: opening,
+      opening_balance_date: details.opening_balance_date || now.slice(0, 10),
+      registered_at: now,
     };
-    const updated = [...this.state.customers, newCust];
-    this.persist({ ...this.state, customers: updated });
+    const ledger = [...(this.state.customer_ledger || [])];
+    if (opening > 0) {
+      ledger.unshift({
+        id: ledger.length ? Math.max(...ledger.map((e) => e.id)) + 1 : 1,
+        store_id, customer_id: newId, date: newCust.opening_balance_date || now,
+        reference: `OPEN-${newId}`, description: 'رصيد افتتاحي', debit: opening, credit: 0,
+        kind: 'opening_balance', source_id: newId,
+      });
+    }
+    this.persist({ ...this.state, customers: [...this.state.customers, newCust], customer_ledger: ledger });
     return newCust;
   }
 
@@ -397,8 +450,168 @@ class SQLiteDatabaseHelper {
     this.persist({ ...this.state, customers: updated });
   }
 
-  public payCustomerDebt(store_id: number, customerId: number, amount: number) {
-    this.updateCustomerDebt(store_id, customerId, -amount);
+  public payCustomerDebt(store_id: number, customerId: number, amount: number, options: {method?: CustomerPayment['method']; reference?: string; saleIds?: number[]; notes?: string; date?: string; idempotencyKey?: string} = {}): CustomerPayment {
+    const customer = this.getCustomerById(store_id, customerId);
+    if (!customer) throw new Error('العميل غير موجود');
+    const paid = Number(amount);
+    if (!Number.isFinite(paid) || paid <= 0) throw new Error('مبلغ السداد غير صالح');
+    if (paid > customer.total_debt + 1e-9) throw new Error('مبلغ السداد أكبر من الرصيد المستحق');
+    const payments = this.state.customer_payments || [];
+    const receiptNumber = options.idempotencyKey || `RCPT-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${store_id}-${customerId}`;
+    if (payments.some((p) => p.store_id === store_id && p.receipt_number === receiptNumber)) {
+      return payments.find((p) => p.store_id === store_id && p.receipt_number === receiptNumber)!;
+    }
+    const id = payments.length ? Math.max(...payments.map((p) => p.id)) + 1 : 1;
+    const date = options.date || new Date().toISOString();
+    const activeShift = this.getActiveDrawerShift(store_id);
+    const payment: CustomerPayment = {
+      id, store_id, customer_id: customerId, amount: paid,
+      method: options.method || 'نقداً', reference: options.reference?.trim() || '',
+      sale_ids: options.saleIds || [], notes: options.notes?.trim() || '', created_at: date, receipt_number: receiptNumber,
+      operator_name: activeShift?.operator_name,
+      shift_id: activeShift?.id,
+    };
+    let remainingToAllocate = paid;
+    const saleIds = new Set(options.saleIds || []);
+    const updatedSales = this.state.sales.map((sale) => {
+      if (sale.store_id !== store_id || sale.customer_id !== customerId || sale.remaining_amount <= 0) return sale;
+      if (saleIds.size && !saleIds.has(sale.id)) return sale;
+      const allocation = Math.min(remainingToAllocate, sale.remaining_amount);
+      remainingToAllocate -= allocation;
+      return allocation > 0 ? { ...sale, remaining_amount: Math.max(0, sale.remaining_amount - allocation), paid_amount: sale.paid_amount + allocation } : sale;
+    });
+    const nextDebt = Math.max(0, customer.total_debt - paid);
+    const updatedCustomers = this.state.customers.map((c) => c.id === customerId && c.store_id === store_id
+      ? { ...c, total_debt: nextDebt, last_payment_at: date, next_due_at: c.next_due_at }
+      : c);
+    const ledger = this.state.customer_ledger || [];
+    ledger.unshift({
+      id: ledger.length ? Math.max(...ledger.map((e) => e.id)) + 1 : 1,
+      store_id, customer_id: customerId, date, reference: receiptNumber,
+      description: `سند قبض - ${options.method || 'نقداً'}`, debit: 0, credit: paid,
+      kind: 'payment', source_id: payment.id,
+    });
+    this.persist({ ...this.state, customer_payments: [payment, ...payments], sales: updatedSales,
+      customers: updatedCustomers, customer_ledger: ledger });
+    return payment;
+  }
+
+  public getCustomerPayments(store_id: number, customerId?: number): CustomerPayment[] {
+    return (this.state.customer_payments || []).filter((p) => p.store_id === store_id && (!customerId || p.customer_id === customerId));
+  }
+
+  public getCustomerLedger(store_id: number, customerId: number): CustomerLedgerEntry[] {
+    const existing = (this.state.customer_ledger || []).filter((e) => e.store_id === store_id && e.customer_id === customerId);
+    const customer = this.getCustomerById(store_id, customerId);
+    if (existing.length || !customer) return [...existing].sort((a, b) => a.date.localeCompare(b.date));
+    const entries: CustomerLedgerEntry[] = [];
+    if (customer.opening_balance) entries.push({ id: 1, store_id, customer_id: customerId, date: customer.opening_balance_date || customer.registered_at || '', reference: `OPEN-${customerId}`, description: 'رصيد افتتاحي', debit: customer.opening_balance, credit: 0, kind: 'opening_balance' });
+    this.getCustomerSales(store_id, customerId).forEach((sale) => {
+      if (sale.remaining_amount > 0) entries.push({ id: entries.length + 1, store_id, customer_id: customerId, date: sale.created_at, reference: `INV-${sale.id}`, description: 'فاتورة بيع آجلة', debit: sale.remaining_amount, credit: 0, kind: 'invoice', source_id: sale.id });
+    });
+    this.getReturns(store_id).filter((r) => r.customer_id === customerId).forEach((r) => entries.push({ id: entries.length + 1, store_id, customer_id: customerId, date: r.created_at, reference: `RET-${r.id}`, description: 'مرتجع معتمد', debit: 0, credit: r.amount, kind: 'return', source_id: r.id }));
+    this.getCustomerPayments(store_id, customerId).forEach((p) => entries.push({ id: entries.length + 1, store_id, customer_id: customerId, date: p.created_at, reference: p.receipt_number, description: 'سند قبض', debit: 0, credit: p.amount, kind: 'payment', source_id: p.id }));
+    return entries.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  public getCustomerSummary(store_id: number, customerId: number) {
+    const customer = this.getCustomerById(store_id, customerId);
+    const sales = this.getCustomerSales(store_id, customerId);
+    const returns = this.getReturns(store_id).filter((r) => r.customer_id === customerId);
+    const payments = this.getCustomerPayments(store_id, customerId);
+    const ledger = this.getCustomerLedger(store_id, customerId);
+    let balance = 0;
+    ledger.forEach((entry) => { balance += entry.debit - entry.credit; });
+    const unpaid = sales.filter((s) => s.remaining_amount > 0);
+    return {
+      customer, totalInvoices: sales.reduce((n, s) => n + s.total_amount, 0), paidAtSale: sales.reduce((n, s) => n + s.paid_amount, 0),
+      totalPayments: payments.reduce((n, p) => n + p.amount, 0), totalReturns: returns.reduce((n, r) => n + r.amount, 0),
+      currentBalance: balance > 0 ? balance : Math.max(0, customer?.total_debt || 0), unpaidInvoiceCount: unpaid.length,
+      availableCredit: Math.max(0, (customer?.credit_limit || 0) - (customer?.total_debt || 0)),
+      firstPurchase: sales.length ? sales.map((s) => s.created_at).sort()[0] : undefined,
+      lastPurchase: customer?.last_purchase_at || (sales.length ? sales.map((s) => s.created_at).sort().at(-1) : undefined),
+      lastPayment: customer?.last_payment_at || (payments.length ? payments.map((p) => p.created_at).sort().at(-1) : undefined),
+      nextDue: customer?.next_due_at,
+    };
+  }
+
+  public createCustomerPaymentPlan(store_id: number, params: {customerId: number; saleId?: number; title: string; notes?: string; installments: {amount: number; dueDate: string}[]}) {
+    const customer = this.getCustomerById(store_id, params.customerId);
+    if (!customer) throw new Error('العميل غير موجود');
+    if (!params.installments.length || params.installments.some((i) => i.amount <= 0 || !i.dueDate)) throw new Error('بيانات الدفعات غير صالحة');
+    const today = new Date();
+    const plans = this.state.customer_payment_plans || [];
+    const id = plans.length ? Math.max(...plans.map((p) => p.id)) + 1 : 1;
+    let installmentId = 1;
+    const plan: CustomerPaymentPlan = { id, store_id, customer_id: params.customerId, sale_id: params.saleId,
+      title: params.title.trim() || 'جدول سداد', notes: params.notes?.trim() || '', created_at: today.toISOString(),
+      installments: params.installments.map((i) => ({ id: installmentId++, amount: i.amount, due_date: i.dueDate, paid_amount: 0,
+        status: new Date(i.dueDate).getTime() <= today.getTime() ? 'مستحقة اليوم' : 'لم يحن موعدها' })) };
+    this.persist({ ...this.state, customer_payment_plans: [plan, ...plans], customers: this.state.customers.map((c) => c.id === params.customerId ? { ...c, next_due_at: params.installments.map((i) => i.dueDate).sort()[0] } : c) });
+    return plan;
+  }
+
+  public payCustomerInstallment(store_id: number, planId: number, installmentId: number, amount: number, method: CustomerPayment['method'] = 'نقداً') {
+    const plans = this.state.customer_payment_plans || [];
+    const plan = plans.find((p) => p.store_id === store_id && p.id === planId);
+    if (!plan) throw new Error('جدول السداد غير موجود');
+    const installment = plan.installments.find((i) => i.id === installmentId);
+    if (!installment) throw new Error('الدفعة غير موجودة');
+    const remaining = installment.amount - installment.paid_amount;
+    if (amount <= 0 || amount > remaining + 1e-9) throw new Error('مبلغ الدفعة غير صالح');
+    const payment = this.payCustomerDebt(store_id, plan.customer_id, amount, { method, saleIds: plan.sale_id ? [plan.sale_id] : [] });
+    const updatedPlans = plans.map((p) => p.id === planId ? { ...p, installments: p.installments.map((i) => {
+      if (i.id !== installmentId) return i;
+      const paidAmount = i.paid_amount + amount;
+      return { ...i, paid_amount: paidAmount, paid_at: new Date().toISOString(), status: paidAmount >= i.amount ? 'مسددة بالكامل' as const : 'مسددة جزئياً' as const };
+    }) } : p);
+    this.persist({ ...this.state, customer_payment_plans: updatedPlans });
+    return payment;
+  }
+
+  public getCustomerPaymentPlans(store_id: number, customerId?: number) { return (this.state.customer_payment_plans || []).filter((p) => p.store_id === store_id && (!customerId || p.customer_id === customerId)); }
+
+  public addCustomerCommunication(store_id: number, data: Omit<CustomerCommunication, 'id' | 'sync_id'>) {
+    const records = this.state.customer_communications || [];
+    const record: CustomerCommunication = { ...data, id: records.length ? Math.max(...records.map((r) => r.id)) + 1 : 1 };
+    this.persist({ ...this.state, customer_communications: [record, ...records], customers: this.state.customers.map((c) => c.id === data.customer_id && c.store_id === store_id
+      ? { ...c, next_due_at: data.follow_up_at || data.expected_payment_date || c.next_due_at } : c) });
+    return record;
+  }
+
+  public getCustomerCommunications(store_id: number, customerId?: number) { return (this.state.customer_communications || []).filter((r) => r.store_id === store_id && (!customerId || r.customer_id === customerId)); }
+
+  public archiveCustomer(store_id: number, customerId: number) { this.updateCustomer(store_id, customerId, { status: 'archived' }); }
+
+  public deleteCustomerSafely(store_id: number, customerId: number) {
+    const hasHistory = this.getCustomerSales(store_id, customerId).length > 0 || this.getCustomerPayments(store_id, customerId).length > 0 || this.getReturns(store_id).some((r) => r.customer_id === customerId);
+    if (hasHistory) throw new Error('لا يمكن حذف عميل له سجلات مالية؛ استخدم الأرشفة أو دمج الحسابات');
+    this.persist({ ...this.state, customers: this.state.customers.filter((c) => !(c.store_id === store_id && c.id === customerId)) });
+  }
+
+  public mergeCustomers(store_id: number, primaryId: number, mergedId: number, reason = '') {
+    if (primaryId === mergedId) throw new Error('اختر حسابين مختلفين');
+    const primary = this.getCustomerById(store_id, primaryId);
+    const merged = this.getCustomerById(store_id, mergedId);
+    if (!primary || !merged) throw new Error('أحد الحسابين غير موجود');
+    const records = this.state.customer_merge_records || [];
+    const mergeId = records.length ? Math.max(...records.map((r) => r.id)) + 1 : 1;
+    const record: CustomerMergeRecord = { id: mergeId, store_id, primary_customer_id: primaryId, merged_customer_id: mergedId, merged_customer_snapshot: merged, created_at: new Date().toISOString(), reason };
+    const combinedDebt = primary.total_debt + merged.total_debt;
+    const updatedCustomers = this.state.customers
+      .filter((c) => !(c.store_id === store_id && c.id === mergedId))
+      .map((c) => c.id === primaryId && c.store_id === store_id ? { ...c, total_debt: combinedDebt } : c);
+    const sales = this.state.sales.map((s) => s.store_id === store_id && s.customer_id === mergedId ? { ...s, customer_id: primaryId, customer_name: primary.name } : s);
+    const returns = this.state.returns.map((r) => r.store_id === store_id && r.customer_id === mergedId ? { ...r, customer_id: primaryId } : r);
+    const payments = (this.state.customer_payments || []).map((p) => p.store_id === store_id && p.customer_id === mergedId ? { ...p, customer_id: primaryId } : p);
+    const ledger = (this.state.customer_ledger || []).map((e) => e.store_id === store_id && e.customer_id === mergedId ? { ...e, customer_id: primaryId } : e);
+    ledger.unshift({ id: ledger.length ? Math.max(...ledger.map((e) => e.id)) + 1 : 1, store_id, customer_id: primaryId, date: record.created_at, reference: `MERGE-${mergeId}`, description: `دمج العميل رقم ${mergedId}`, debit: 0, credit: 0, kind: 'merge', source_id: mergeId });
+    this.persist({ ...this.state, customers: updatedCustomers, sales, returns,
+      customer_payments: payments, customer_ledger: ledger,
+      customer_payment_plans: (this.state.customer_payment_plans || []).map((p) => p.store_id === store_id && p.customer_id === mergedId ? { ...p, customer_id: primaryId } : p),
+      customer_communications: (this.state.customer_communications || []).map((c) => c.store_id === store_id && c.customer_id === mergedId ? { ...c, customer_id: primaryId } : c),
+      customer_merge_records: [...records, record] });
+    return record;
   }
 
   // --- Store expense records ---
@@ -410,7 +623,8 @@ class SQLiteDatabaseHelper {
     if (!Number.isFinite(data.amount) || data.amount <= 0 || !data.category.trim() || !data.date) throw new Error('أدخل تصنيفاً ومبلغاً وتاريخاً صحيحاً للمصروف');
     const records = this.state.expenses || [];
     const id = records.length ? Math.max(...records.map((expense) => expense.id)) + 1 : 1;
-    const record: Expense = { ...data, id, created_at: new Date().toISOString() };
+    const activeShift = this.getActiveDrawerShift(data.store_id);
+    const record: Expense = { ...data, id, created_at: new Date().toISOString(), operator_name: activeShift?.operator_name, shift_id: activeShift?.id };
     this.persist({ ...this.state, expenses: [...records, record] });
     return record;
   }
@@ -426,6 +640,49 @@ class SQLiteDatabaseHelper {
   }
 
   // --- Sales & Sale Items operations ---
+  public insertFreeCustomerInvoice(storeId: number, customerId: number, params: { description: string; totalAmount: number; paidAmount: number; paymentType: 'نقداً' | 'آجل' | 'شبكة'; date?: string }): Sale {
+    const customer = this.getCustomerById(storeId, customerId);
+    if (!customer) throw new Error('العميل غير موجود');
+    const description = params.description.trim();
+    const total = Number(params.totalAmount);
+    const paid = Math.max(0, Number(params.paidAmount) || 0);
+    if (!description) throw new Error('يرجى إدخال وصف الفاتورة الحرة');
+    if (!Number.isFinite(total) || total <= 0) throw new Error('قيمة الفاتورة غير صالحة');
+    if (paid > total + 1e-9) throw new Error('المبلغ المدفوع لا يمكن أن يتجاوز قيمة الفاتورة');
+    const remaining = Math.max(0, total - paid);
+    if (customer.status === 'suspended' || customer.status === 'archived') throw new Error('العميل موقوف ولا يسمح بإضافة فاتورة آجلة له');
+    if (remaining > 0 && customer.total_debt + remaining > (customer.credit_limit || 50000) && !customer.allow_credit_override) {
+      throw new Error('تم تجاوز الحد الائتماني للعميل ولا يسمح بإضافة فاتورة آجلة');
+    }
+    const now = params.date ? new Date(`${params.date}T12:00:00`) : new Date();
+    const formattedDate = `${now.toISOString().split('T')[0]} ${now.toTimeString().split(' ')[0]}`;
+    const id = this.state.sales.length ? Math.max(...this.state.sales.map((s) => s.id)) + 1 : 101;
+    const activeShift = this.getActiveDrawerShift(storeId);
+    const sale: Sale = {
+      id,
+      store_id: storeId,
+      customer_id: customerId,
+      customer_name: customer.name,
+      total_amount: total,
+      discount_amount: 0,
+      paid_amount: paid,
+      remaining_amount: remaining,
+      payment_type: params.paymentType,
+      created_at: formattedDate,
+      operator_name: activeShift?.operator_name,
+      shift_id: activeShift?.id,
+    };
+    const ledger = [...(this.state.customer_ledger || [])];
+    const nextLedgerId = () => ledger.length ? Math.max(...ledger.map((e) => e.id)) + 1 : 1;
+    ledger.unshift({ id: nextLedgerId(), store_id: storeId, customer_id: customerId, date: formattedDate, reference: `FREE-${id}`, description: `فاتورة حرة: ${description}`, debit: total, credit: 0, kind: 'invoice', source_id: id });
+    if (paid > 0) ledger.unshift({ id: nextLedgerId(), store_id: storeId, customer_id: customerId, date: formattedDate, reference: `FREE-${id}`, description: `مدفوع عند فاتورة حرة: ${description}`, debit: 0, credit: paid, kind: 'payment', source_id: id });
+    const customers = this.state.customers.map((c) => c.id === customerId && c.store_id === storeId
+      ? { ...c, total_debt: Math.max(0, c.total_debt + remaining), last_purchase_at: formattedDate, next_due_at: remaining > 0 ? (() => { const due = new Date(now); due.setDate(due.getDate() + (c.payment_term_days || 30)); return due.toISOString().slice(0, 10); })() : c.next_due_at }
+      : c);
+    this.persist({ ...this.state, sales: [sale, ...this.state.sales], customers, customer_ledger: ledger });
+    return sale;
+  }
+
   public completeSale(params: {
     store_id: number;
     customer_id: number | null;
@@ -435,6 +692,7 @@ class SQLiteDatabaseHelper {
     paid_amount: number;
     remaining_amount: number;
     payment_type: 'نقداً' | 'آجل' | 'شبكة';
+    credit_override?: { approved: boolean; approver: string; reason: string };
     items: { product_id: number; product_name?: string; qty: number; price: number }[];
   }): { sale: Sale; items: SaleItem[]; customerCreated?: Customer } {
     if (!params.items.length || params.items.some(i => !Number.isFinite(i.qty) || i.qty <= 0 || !Number.isFinite(i.price) || i.price < 0)) throw new Error('يوجد صنف بكمية أو سعر غير صحيح');
@@ -475,7 +733,25 @@ class SQLiteDatabaseHelper {
       if (c) customerName = c.name;
     }
 
+    if (activeCustomerId && params.remaining_amount > 0) {
+      const creditCustomer = updatedCustomers.find((c) => c.id === activeCustomerId && c.store_id === params.store_id);
+      if (creditCustomer) {
+        const limit = creditCustomer.credit_limit ?? 50000;
+        const nextDebt = creditCustomer.total_debt + params.remaining_amount;
+        if (nextDebt > limit && !params.credit_override?.approved) {
+          throw new Error(`تم تجاوز الحد الائتماني (${limit}). يلزم موافقة مخولة لتأكيد البيع الآجل`);
+        }
+        if (nextDebt > limit && params.credit_override?.approved && (!params.credit_override.approver || !params.credit_override.reason)) {
+          throw new Error('يجب تسجيل اسم المستخدم وسبب موافقة تجاوز الحد الائتماني');
+        }
+        if (creditCustomer.status === 'suspended' || creditCustomer.status === 'archived') {
+          throw new Error('العميل موقوف ولا يسمح له بالبيع الآجل');
+        }
+      }
+    }
+
     const newSaleId = this.state.sales.length ? Math.max(...this.state.sales.map((s) => s.id)) + 1 : 101;
+    const activeShift = this.getActiveDrawerShift(params.store_id);
     const sale: Sale = {
       id: newSaleId,
       store_id: params.store_id,
@@ -487,6 +763,8 @@ class SQLiteDatabaseHelper {
       remaining_amount: params.remaining_amount,
       payment_type: params.payment_type,
       created_at: formattedDate,
+      operator_name: activeShift?.operator_name,
+      shift_id: activeShift?.id,
     };
 
     let itemSeq = this.state.sale_items.length ? Math.max(...this.state.sale_items.map((i) => i.id)) + 1 : 1;
@@ -509,13 +787,38 @@ class SQLiteDatabaseHelper {
     });
 
     // Update customer debt if remaining > 0 and customer is chosen or created
-    if (activeCustomerId && params.remaining_amount > 0) {
+    let ledger = [...(this.state.customer_ledger || [])];
+    if (activeCustomerId) {
+      const dueDate = new Date(now);
+      const currentCustomer = updatedCustomers.find((c) => c.id === activeCustomerId && c.store_id === params.store_id);
+      dueDate.setDate(dueDate.getDate() + (currentCustomer?.payment_term_days || 30));
       updatedCustomers = updatedCustomers.map((c) => {
         if (c.id === activeCustomerId && c.store_id === params.store_id) {
-          return { ...c, total_debt: c.total_debt + params.remaining_amount };
+          return {
+            ...c,
+            total_debt: c.total_debt + (params.remaining_amount > 0 ? params.remaining_amount : 0),
+            last_purchase_at: formattedDate,
+            next_due_at: params.remaining_amount > 0 ? dueDate.toISOString().slice(0, 10) : c.next_due_at,
+          };
         }
         return c;
       });
+      const nextLedgerId = () => ledger.length ? Math.max(...ledger.map((e) => e.id)) + 1 : 1;
+      ledger.unshift({
+        id: nextLedgerId(),
+        store_id: params.store_id, customer_id: activeCustomerId, date: formattedDate,
+        reference: `INV-${newSaleId}`,
+        description: params.remaining_amount > 0 ? 'فاتورة بيع آجلة' : 'فاتورة بيع نقدية',
+        debit: params.total_amount, credit: 0, kind: 'invoice', source_id: newSaleId,
+      });
+      if (params.paid_amount > 0) {
+        ledger.unshift({
+          id: nextLedgerId(),
+          store_id: params.store_id, customer_id: activeCustomerId, date: formattedDate,
+          reference: `INV-${newSaleId}`, description: 'مدفوع عند البيع', debit: 0,
+          credit: params.paid_amount, kind: 'payment', source_id: newSaleId,
+        });
+      }
     }
 
     const nextState: DatabaseState = {
@@ -524,6 +827,7 @@ class SQLiteDatabaseHelper {
       sale_items: [...this.state.sale_items, ...newSaleItems],
       products: updatedProducts,
       customers: updatedCustomers,
+      customer_ledger: ledger,
     };
     this.persist(nextState);
     return { sale, items: newSaleItems, customerCreated };
@@ -531,6 +835,43 @@ class SQLiteDatabaseHelper {
 
   public getSales(store_id: number): Sale[] {
     return this.state.sales.filter((s) => s.store_id === store_id);
+  }
+
+  public getActiveSales(store_id: number): Sale[] {
+    return this.state.sales.filter((s) => s.store_id === store_id && !s.is_archived);
+  }
+
+  public getArchivedSales(store_id: number): Sale[] {
+    return this.state.sales.filter((s) => s.store_id === store_id && s.is_archived);
+  }
+
+  public archiveSale(store_id: number, saleId: number): void {
+    const archivedAt = new Date().toISOString();
+    this.persist({ ...this.state, sales: this.state.sales.map((sale) => sale.store_id === store_id && sale.id === saleId
+      ? { ...sale, is_archived: true, archived_at: archivedAt }
+      : sale) });
+  }
+
+  public restoreSale(store_id: number, saleId: number): void {
+    this.persist({ ...this.state, sales: this.state.sales.map((sale) => sale.store_id === store_id && sale.id === saleId
+      ? { ...sale, is_archived: false, archived_at: undefined }
+      : sale) });
+  }
+
+  public getArchivedProducts(store_id: number): Product[] {
+    return this.state.products.filter((product) => product.store_id === store_id && product.is_active === 0);
+  }
+
+  public restoreProduct(store_id: number, productId: number): void {
+    this.updateProduct(store_id, productId, { is_active: 1 });
+  }
+
+  public getArchivedCustomers(store_id: number): Customer[] {
+    return this.state.customers.filter((customer) => customer.store_id === store_id && (customer.status === 'archived' || customer.status === 'suspended'));
+  }
+
+  public restoreCustomer(store_id: number, customerId: number): void {
+    this.updateCustomer(store_id, customerId, { status: 'active' });
   }
 
   public getSaleById(store_id: number, saleId: number): Sale | null {
@@ -559,6 +900,7 @@ class SQLiteDatabaseHelper {
     if (!soldItem) throw new Error('الصنف غير موجود في الفاتورة المحددة');
     const alreadyReturned = this.state.returns.filter(r => r.type === 'invoice' && r.sale_id === params.sale_id && r.product_id === params.product_id).reduce((n,r) => n + r.qty, 0);
     if (params.qty > soldItem.qty - alreadyReturned + 1e-9) throw new Error(`الكمية المتاحة للإرجاع هي ${Math.max(0, soldItem.qty - alreadyReturned)}`);
+    const activeShift = this.getActiveDrawerShift(params.store_id);
     const newId = this.state.returns.length ? Math.max(...this.state.returns.map((r) => r.id)) + 1 : 1;
     const now = new Date();
     const dateStr = `${now.toISOString().split('T')[0]} ${now.toTimeString().split(' ')[0]}`;
@@ -573,6 +915,8 @@ class SQLiteDatabaseHelper {
       amount: params.amount,
       type: 'invoice',
       created_at: dateStr,
+      operator_name: activeShift?.operator_name,
+      shift_id: activeShift?.id,
     };
 
     // Restore product stock
@@ -594,11 +938,16 @@ class SQLiteDatabaseHelper {
       });
     }
 
+    const ledger = [...(this.state.customer_ledger || [])];
+    if (params.customer_id) ledger.unshift({ id: ledger.length ? Math.max(...ledger.map((e) => e.id)) + 1 : 1,
+      store_id: params.store_id, customer_id: params.customer_id, date: dateStr, reference: `RET-${returnRecord.id}`,
+      description: 'مرتجع من فاتورة', debit: 0, credit: params.amount, kind: 'return', source_id: returnRecord.id });
     this.persist({
       ...this.state,
       returns: [returnRecord, ...this.state.returns],
       products: updatedProducts,
       customers: updatedCustomers,
+      customer_ledger: ledger,
     });
     return returnRecord;
   }
@@ -611,6 +960,7 @@ class SQLiteDatabaseHelper {
     qty?: number;
   }) {
     const newId = this.state.returns.length ? Math.max(...this.state.returns.map((r) => r.id)) + 1 : 1;
+    const activeShift = this.getActiveDrawerShift(params.store_id);
     const now = new Date();
     const dateStr = `${now.toISOString().split('T')[0]} ${now.toTimeString().split(' ')[0]}`;
 
@@ -624,6 +974,8 @@ class SQLiteDatabaseHelper {
       amount: params.amount,
       type: 'credit',
       created_at: dateStr,
+      operator_name: activeShift?.operator_name,
+      shift_id: activeShift?.id,
     };
 
     // Deduct from customer's debt
@@ -634,10 +986,15 @@ class SQLiteDatabaseHelper {
       return c;
     });
 
+    const ledger = [...(this.state.customer_ledger || [])];
+    ledger.unshift({ id: ledger.length ? Math.max(...ledger.map((e) => e.id)) + 1 : 1,
+      store_id: params.store_id, customer_id: params.customer_id, date: dateStr, reference: `RET-${returnRecord.id}`,
+      description: 'مرتجع معتمد', debit: 0, credit: params.amount, kind: 'return', source_id: returnRecord.id });
     this.persist({
       ...this.state,
       returns: [returnRecord, ...this.state.returns],
       customers: updatedCustomers,
+      customer_ledger: ledger,
     });
     return returnRecord;
   }
@@ -835,6 +1192,89 @@ class SQLiteDatabaseHelper {
       return c;
     });
     this.persist({ ...this.state, customers: updated });
+  }
+
+  // ==========================================
+  // وردية الدرج والتقارير حسب المستخدم
+  // ==========================================
+  public openDrawerShift(storeId: number, operatorName: string, openingAmount: number): DrawerShift {
+    const name = operatorName.trim();
+    if (!name) throw new Error('اسم المستخدم مطلوب لفتح الدرج');
+    if (!Number.isFinite(openingAmount) || openingAmount < 0) throw new Error('قيمة فتح الوردية غير صالحة');
+    const openShift = (this.state.drawer_shifts || []).find((s) => s.store_id === storeId && s.status === 'open');
+    if (openShift) throw new Error(`الدرج مفتوح بالفعل للمستخدم ${openShift.operator_name}`);
+    const shifts = this.state.drawer_shifts || [];
+    const shift: DrawerShift = {
+      id: shifts.length ? Math.max(...shifts.map((s) => s.id)) + 1 : 1,
+      store_id: storeId,
+      operator_name: name,
+      opening_amount: openingAmount,
+      opening_at: new Date().toISOString(),
+      status: 'open',
+    };
+    this.persist({ ...this.state, drawer_shifts: [shift, ...shifts] });
+    this.saveSharedPreferences({ active_shift_id: shift.id });
+    return shift;
+  }
+
+  public getActiveDrawerShift(storeId: number): DrawerShift | null {
+    const prefsShiftId = this.sharedPreferences.active_shift_id;
+    const shifts = this.state.drawer_shifts || [];
+    return shifts.find((s) => s.store_id === storeId && s.status === 'open' && (!prefsShiftId || s.id === prefsShiftId))
+      || shifts.find((s) => s.store_id === storeId && s.status === 'open')
+      || null;
+  }
+
+  public getDrawerShiftReport(storeId: number, shiftId?: number) {
+    const shift = shiftId
+      ? (this.state.drawer_shifts || []).find((s) => s.store_id === storeId && s.id === shiftId) || null
+      : this.getActiveDrawerShift(storeId);
+    if (!shift) throw new Error('لا توجد وردية مفتوحة');
+    const start = shift.opening_at;
+    const end = shift.closing_at || new Date().toISOString();
+    const sales = this.getSales(storeId).filter((s) => s.shift_id === shift.id || (!s.shift_id && s.created_at >= start));
+    const payments = (this.state.customer_payments || []).filter((p) => p.store_id === storeId && (p.shift_id === shift.id || (!p.shift_id && p.created_at >= start)));
+    const returns = this.getReturns(storeId).filter((r) => r.shift_id === shift.id || (!r.shift_id && r.created_at >= start));
+    const expenses = (this.state.expenses || []).filter((e) => e.store_id === storeId && (!e.shift_id && e.created_at >= start));
+    const inPeriod = (date: string) => {
+      const at = Date.parse(date.includes('T') ? date : date.replace(' ', 'T'));
+      const from = Date.parse(start);
+      const to = Date.parse(end);
+      return Number.isFinite(at) && at >= from && at <= to;
+    };
+    const shiftSales = sales.filter((s) => s.shift_id === shift.id || (!s.shift_id && inPeriod(s.created_at)));
+    const shiftPayments = payments.filter((p) => p.shift_id === shift.id || (!p.shift_id && inPeriod(p.created_at)));
+    const shiftReturns = returns.filter((r) => r.shift_id === shift.id || (!r.shift_id && inPeriod(r.created_at)));
+    const shiftExpenses = expenses.filter((e) => e.shift_id === shift.id || (!e.shift_id && inPeriod(e.created_at)));
+    const totals = calculateZReportBreakdown(shiftSales, shiftReturns.reduce((n, r) => n + r.amount, 0));
+    const cashPayments = shiftPayments.filter((p) => p.method === 'نقداً').reduce((n, p) => n + p.amount, 0);
+    const expectedCash = shift.opening_amount + totals.totalCashSales + cashPayments - shiftReturns.reduce((n, r) => n + r.amount, 0) - shiftExpenses.reduce((n, e) => n + e.amount, 0);
+    return {
+      shift,
+      sales: shiftSales,
+      payments: shiftPayments,
+      returns: shiftReturns,
+      expenses: shiftExpenses,
+      openingAmount: shift.opening_amount,
+      ...totals,
+      cashPayments,
+      expectedCash,
+    };
+  }
+
+  public closeDrawerShift(storeId: number, closingAmount: number, closedBy?: string): DrawerShift & { report: ReturnType<SQLiteDatabaseHelper['getDrawerShiftReport']> } {
+    const shift = this.getActiveDrawerShift(storeId);
+    if (!shift) throw new Error('لا توجد وردية مفتوحة');
+    if (!Number.isFinite(closingAmount) || closingAmount < 0) throw new Error('قيمة الدرج عند الإغلاق غير صالحة');
+    const closedAt = new Date().toISOString();
+    const shifts = (this.state.drawer_shifts || []).map((s) => s.id === shift.id && s.store_id === storeId
+      ? { ...s, status: 'closed' as const, closing_amount: closingAmount, closing_at: closedAt, closed_by: closedBy?.trim() || shift.operator_name }
+      : s);
+    this.persist({ ...this.state, drawer_shifts: shifts });
+    this.saveSharedPreferences({ active_shift_id: undefined });
+    const closedShift = shifts.find((s) => s.id === shift.id)!;
+    const report = this.getDrawerShiftReport(storeId, shift.id);
+    return { ...closedShift, report };
   }
 
   // ==========================================

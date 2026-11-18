@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Share2, Receipt, Phone, Calendar, Clock, CheckCircle2 } from 'lucide-react';
 import { db } from '../../../db/sqlite-simulation.ts';
-import { Sale, SaleItem } from '../../../types/index.ts';
+import { Sale, SaleItem, CustomerLedgerEntry } from '../../../types/index.ts';
 import { formatCurrency } from '../../../utils/pureLogic.ts';
 import { WhatsAppShareModal } from '../WhatsAppShareModal.tsx';
 import { useTheme } from '../../../context/ThemeContext.tsx';
@@ -30,6 +30,9 @@ export const StatementScreen: React.FC<StatementScreenProps> = ({
 }) => {
   const { theme, isDarkMode } = useTheme();
   const [sales, setSales] = useState<{ sale: Sale; items: SaleItem[] }[]>([]);
+  const [ledger, setLedger] = useState<CustomerLedgerEntry[]>([]);
+  const [tab, setTab] = useState<'all' | 'invoice' | 'payment' | 'return' | 'other'>('all');
+  const [search, setSearch] = useState('');
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   useEffect(() => {
@@ -43,7 +46,24 @@ export const StatementScreen: React.FC<StatementScreenProps> = ({
       items: db.getSaleItems(s.id),
     }));
     setSales(detailed);
+    setLedger(db.getCustomerLedger(storeId, customerId));
   };
+
+  const summary = db.getCustomerSummary(storeId, customerId);
+  const filteredLedger = ledger.filter((entry) => {
+    if (tab === 'invoice' && entry.kind !== 'invoice') return false;
+    if (tab === 'payment' && entry.kind !== 'payment') return false;
+    if (tab === 'return' && entry.kind !== 'return') return false;
+    if (tab === 'other' && !['opening_balance','adjustment','merge'].includes(entry.kind)) return false;
+    const q = search.trim().toLowerCase();
+    return !q || entry.description.toLowerCase().includes(q) || entry.reference.toLowerCase().includes(q);
+  });
+
+  let runningBalance = summary.customer?.opening_balance || 0;
+  const ledgerWithBalance = filteredLedger.map((entry) => {
+    runningBalance += entry.debit - entry.credit;
+    return { ...entry, balance: runningBalance };
+  });
 
   const generateStatementText = () => {
     const store = db.findUserById(storeId);
@@ -66,6 +86,19 @@ export const StatementScreen: React.FC<StatementScreenProps> = ({
       text += `\n--------------------------------\n`;
     });
 
+    const payments = db.getCustomerPayments(storeId, customerId);
+    if (payments.length) {
+      text += `سندات القبض والسدادات:\n`;
+      payments.forEach((payment) => {
+        text += `• سند ${payment.receipt_number} (${payment.created_at.slice(0,10)}): ${formatCurrency(payment.amount)} - ${payment.method}\n`;
+      });
+      text += `--------------------------------\n`;
+    }
+
+    text += `الإجمالي الافتتاحي/الفواتير: ${formatCurrency(summary.totalInvoices)}\n`;
+    text += `إجمالي سندات القبض: ${formatCurrency(summary.totalPayments)}\n`;
+    text += `إجمالي المرتجعات: ${formatCurrency(summary.totalReturns)}\n`;
+    text += `*الرصيد التراكمي المستحق:* ${formatCurrency(summary.currentBalance)}\n`;
     text += `\nشاكرين لكم حسن التعامل والمبادرة بالسداد.`;
     return text;
   };
@@ -81,16 +114,20 @@ export const StatementScreen: React.FC<StatementScreenProps> = ({
           >
             <ArrowRight className="w-5 h-5" />
           </button>
-          <h2 className="font-bold text-sm">كشف حساب العميل</h2>
+          <h2 className="font-bold text-sm">كشف الحساب التراكمي للعميل</h2>
         </div>
 
-        <button
-          onClick={() => setIsShareModalOpen(true)}
-          className="bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-sm"
-        >
-          <Share2 className="w-3.5 h-3.5" />
-          <span>مشاركة كشف الحساب</span>
-        </button>
+        <div className="flex gap-1">
+          <button onClick={() => window.print()} className="bg-white/15 text-white text-[10px] px-2 py-1.5 rounded-lg">طباعة/PDF</button>
+          <button onClick={() => {
+            const csv = ['التاريخ,المرجع,الوصف,مدين,دائن,الرصيد', ...ledger.map(e => [e.date.slice(0,10),e.reference,e.description,e.debit,e.credit,summary.currentBalance].join(','))].join('\n');
+            const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})); const a=document.createElement('a'); a.href=url; a.download=`statement-${customerId}.csv`; a.click(); URL.revokeObjectURL(url);
+          }} className="bg-white/15 text-white text-[10px] px-2 py-1.5 rounded-lg">Excel</button>
+          <button
+            onClick={() => setIsShareModalOpen(true)}
+            className="bg-[#25D366] text-white text-[10px] font-bold px-2 py-1.5 rounded-lg flex items-center gap-1"
+          ><Share2 className="w-3 h-3" /><span>مشاركة</span></button>
+        </div>
       </div>
 
       {/* Customer Info Card */}
@@ -98,7 +135,11 @@ export const StatementScreen: React.FC<StatementScreenProps> = ({
         <div className="flex justify-between items-center">
           <div>
             <h3 className={`font-bold text-sm ${theme.textPrimary}`}>{customerName}</h3>
-            <p className={`text-xs ${theme.textSecondary} font-mono mt-0.5`}>{customerPhone || 'بدون هاتف'}</p>
+            <p className={`text-xs ${theme.textSecondary} font-mono mt-0.5`}>{customerPhone || 'بدون هاتف'} • رقم عميل #{customerId}</p>
+            {summary.customer?.address && <p className={`text-[10px] ${theme.textSecondary} mt-0.5`}>{summary.customer.address}</p>}
+            <p className={`text-[9px] ${theme.textSecondary} mt-0.5`}>
+              تاريخ التسجيل: {summary.customer?.registered_at?.slice(0,10) || '-'} • التصنيف: {summary.customer?.category || 'جديد'}
+            </p>
           </div>
           <div className={`text-left ${
             isDarkMode ? 'bg-red-950/60 border-red-900/60' : 'bg-red-50 border-red-200'
@@ -111,8 +152,35 @@ export const StatementScreen: React.FC<StatementScreenProps> = ({
         </div>
       </div>
 
-      {/* Invoices List */}
+      {/* Comprehensive ledger summary */}
+      <div className="p-3 grid grid-cols-3 gap-2 border-b border-gray-200/30">
+        <div className={`${theme.cardBg} border ${theme.borderColor} rounded-xl p-2 text-center`}><p className="text-[9px]">إجمالي الفواتير</p><p className="font-bold text-xs">{formatCurrency(summary.totalInvoices)}</p></div>
+        <div className={`${theme.cardBg} border ${theme.borderColor} rounded-xl p-2 text-center`}><p className="text-[9px]">سندات القبض</p><p className="font-bold text-xs text-emerald-600">{formatCurrency(summary.totalPayments)}</p></div>
+        <div className={`${theme.cardBg} border ${theme.borderColor} rounded-xl p-2 text-center`}><p className="text-[9px]">المرتجعات</p><p className="font-bold text-xs text-amber-600">{formatCurrency(summary.totalReturns)}</p></div>
+      </div>
+
+      {/* Ledger tabs */}
+      <div className="px-3 pt-2 space-y-2">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث في حركات الحساب" className={`w-full ${theme.inputBg} border ${theme.borderColor} rounded-lg px-2 py-1.5 text-xs`} />
+        <div className="flex gap-1 overflow-x-auto text-[10px]">
+          {([['all','الكل'],['invoice','الفواتير'],['payment','السداد'],['return','المرتجعات'],['other','الحركات']] as const).map(([value,label]) => (
+            <button key={value} onClick={() => setTab(value)} className={`whitespace-nowrap px-2 py-1.5 rounded-lg border ${tab===value?'bg-[#0B3D2E] text-white':'border-gray-300'}`}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Invoices and ledger */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {ledgerWithBalance.length > 0 && <div className={`rounded-xl border ${theme.borderColor} overflow-hidden`}>
+          {ledgerWithBalance.map((entry) => (
+            <div key={`${entry.id}-${entry.reference}`} className={`grid grid-cols-[70px_1fr_62px_62px_72px] gap-1 items-center px-2 py-2 border-b ${theme.borderColor} text-[9px]`}>
+              <span>{entry.date.slice(0,10)}</span><span className="truncate">{entry.description}<br/><b>{entry.reference}</b></span>
+              <span className="text-[#8B2E2E] text-left">{entry.debit?formatCurrency(entry.debit):'-'}</span>
+              <span className="text-emerald-600 text-left">{entry.credit?formatCurrency(entry.credit):'-'}</span>
+              <span className="font-bold text-left">{formatCurrency(entry.balance)}</span>
+            </div>
+          ))}
+        </div>}
         <h4 className="text-xs font-bold text-[#C9A961] flex items-center gap-1">
           <Receipt className="w-4 h-4 text-[#C9A961]" />
           <span>سجل الفواتير والمشتريات:</span>
@@ -144,6 +212,7 @@ export const StatementScreen: React.FC<StatementScreenProps> = ({
 
               {/* Items Breakdown */}
               <div className="space-y-1 text-xs">
+                {items.length === 0 && <div className={`text-[11px] ${theme.textSecondary}`}>فاتورة حرة أو حركة مبلغ يدوي مسجلة للحساب</div>}
                 {items.map((it) => (
                   <div key={it.id} className={`flex justify-between ${theme.textPrimary} text-[11px]`}>
                     <span className="truncate">{it.product_name || `صنف #${it.product_id}`}</span>
@@ -165,6 +234,16 @@ export const StatementScreen: React.FC<StatementScreenProps> = ({
                   </div>
                 )}
               </div>
+              <button
+                onClick={() => {
+                  if (!window.confirm(`هل تريد أرشفة الفاتورة رقم ${sale.id} دون حذفها؟`)) return;
+                  db.archiveSale(storeId, sale.id);
+                  loadCustomerData();
+                }}
+                className="mt-2 w-full rounded-lg border border-amber-300 bg-amber-50 py-1.5 text-[10px] font-bold text-amber-800"
+              >
+                أرشفة الفاتورة
+              </button>
             </div>
           ))
         )}

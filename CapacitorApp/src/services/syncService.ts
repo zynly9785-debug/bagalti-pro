@@ -3,7 +3,7 @@ import type { DatabaseState, } from '../db/sqlite-simulation.ts';
 import type { SharedPreferences } from '../types/index.ts';
 import { supabase } from '../supabaseClient.ts';
 
-type Entity = 'product' | 'customer' | 'sale' | 'sale_item' | 'return' | 'expense' | 'quick_product' | 'store_preferences';
+type Entity = 'product' | 'customer' | 'sale' | 'sale_item' | 'return' | 'expense' | 'quick_product' | 'store_preferences' | 'customer_payment' | 'customer_ledger' | 'customer_payment_plan' | 'customer_communication' | 'customer_merge' | 'drawer_shift';
 type SyncRow = { store_id: string; entity: Entity; record_id: string; record_data: Record<string, unknown>; device_id: string; updated_at?: string; deleted_at?: string | null };
 type SyncResult = { uploaded: number; downloaded: number; completedAt: string };
 
@@ -17,7 +17,7 @@ const numericId = (value: unknown, fallback: number) => Number.isFinite(Number(v
 const syncTime = (data: Record<string, unknown>, fallback?: string) => String(data._sync_updated_at || fallback || '1970-01-01T00:00:00.000Z');
 
 function attachSyncIds(state: DatabaseState, storeId: number) {
-  for (const entity of ['products', 'customers', 'sales', 'sale_items', 'returns', 'expenses'] as const) {
+  for (const entity of ['products', 'customers', 'sales', 'sale_items', 'returns', 'expenses', 'customer_payments', 'customer_ledger', 'customer_payment_plans', 'customer_communications', 'customer_merge_records', 'drawer_shifts'] as const) {
     const list = state[entity] as Array<{ sync_id?: string; store_id?: number }>;
     for (const row of list) if (row.store_id === undefined || row.store_id === storeId) row.sync_id = idFor(row);
   }
@@ -48,6 +48,12 @@ function buildRows(state: DatabaseState, preferences: SharedPreferences, cloudSt
     _customer_sync_id: row.customer_id ? customerSync.get(row.customer_id) || null : null,
   });
   for (const row of (state.expenses || []).filter((x) => x.store_id === localStoreId)) append('expense', row.sync_id!, { ...row });
+  for (const row of (state.customer_payments || []).filter((x) => x.store_id === localStoreId)) append('customer_payment', row.sync_id || idFor(row), { ...row, _customer_sync_id: row.customer_id ? customerSync.get(row.customer_id) || null : null });
+  for (const row of (state.customer_ledger || []).filter((x) => x.store_id === localStoreId)) append('customer_ledger', row.sync_id || idFor(row), { ...row, _customer_sync_id: row.customer_id ? customerSync.get(row.customer_id) || null : null });
+  for (const row of (state.customer_payment_plans || []).filter((x) => x.store_id === localStoreId)) append('customer_payment_plan', row.sync_id || idFor(row), { ...row, _customer_sync_id: row.customer_id ? customerSync.get(row.customer_id) || null : null });
+  for (const row of (state.customer_communications || []).filter((x) => x.store_id === localStoreId)) append('customer_communication', row.sync_id || idFor(row), { ...row, _customer_sync_id: row.customer_id ? customerSync.get(row.customer_id) || null : null });
+  for (const row of (state.customer_merge_records || []).filter((x) => x.store_id === localStoreId)) append('customer_merge', row.sync_id || idFor(row), { ...row });
+  for (const row of (state.drawer_shifts || []).filter((x) => x.store_id === localStoreId)) append('drawer_shift', row.sync_id || idFor(row), { ...row });
   for (const row of (state.quick_products || []).filter((x) => x.store_id === localStoreId)) append('quick_product', row.sync_id!, {
     ...row, _product_sync_id: productSync.get(row.product_id) || null,
   });
@@ -128,6 +134,20 @@ function mergeRemote(state: DatabaseState, remoteRows: SyncRow[], localStoreId: 
     delete data._sale_sync_id; delete data._product_sync_id; delete data._customer_sync_id;
   });
   mergeDependent(state.expenses as Array<{ id: number; sync_id?: string; store_id?: number }>, byEntity.get('expense') || [], () => {});
+  mergeDependent((state.customer_payments || []) as Array<{ id: number; sync_id?: string; store_id?: number }>, byEntity.get('customer_payment') || [], (data) => {
+    data.customer_id = data._customer_sync_id ? customerMap.get(String(data._customer_sync_id)) ?? null : null; delete data._customer_sync_id;
+  });
+  mergeDependent((state.customer_ledger || []) as Array<{ id: number; sync_id?: string; store_id?: number }>, byEntity.get('customer_ledger') || [], (data) => {
+    data.customer_id = data._customer_sync_id ? customerMap.get(String(data._customer_sync_id)) ?? null : null; delete data._customer_sync_id;
+  });
+  mergeDependent((state.customer_payment_plans || []) as Array<{ id: number; sync_id?: string; store_id?: number }>, byEntity.get('customer_payment_plan') || [], (data) => {
+    data.customer_id = data._customer_sync_id ? customerMap.get(String(data._customer_sync_id)) ?? null : null; delete data._customer_sync_id;
+  });
+  mergeDependent((state.customer_communications || []) as Array<{ id: number; sync_id?: string; store_id?: number }>, byEntity.get('customer_communication') || [], (data) => {
+    data.customer_id = data._customer_sync_id ? customerMap.get(String(data._customer_sync_id)) ?? null : null; delete data._customer_sync_id;
+  });
+  mergeDependent((state.customer_merge_records || []) as Array<{ id: number; sync_id?: string; store_id?: number }>, byEntity.get('customer_merge') || [], () => {});
+  mergeDependent((state.drawer_shifts || []) as Array<{ id: number; sync_id?: string; store_id?: number }>, byEntity.get('drawer_shift') || [], () => {});
 
   const quickLocal = state.quick_products || [];
   const quickIndex = new Map(quickLocal.map((row, i) => [row.sync_id, i]));
@@ -149,6 +169,50 @@ function mergeRemote(state: DatabaseState, remoteRows: SyncRow[], localStoreId: 
 }
 
 let activeSync: Promise<SyncResult> | null = null;
+
+export type CloudSnapshotResult = { id: string; createdAt: string; recordCount: number };
+
+export async function createCloudSnapshot(): Promise<CloudSnapshotResult> {
+  if (!supabase) throw new Error('الاتصال السحابي غير مهيأ.');
+  const prefs = db.getSharedPreferences();
+  if (!prefs.cloud_store_id) throw new Error('سجّل دخول المتجر وسجّل المزامنة السحابية أولاً.');
+  await synchronizeStore();
+  const raw = db.getRawState();
+  const snapshot = {
+    ...JSON.parse(JSON.stringify(raw)) as DatabaseState,
+    users: raw.users.map((user) => ({ ...user, password: '', pin_code: '' })),
+  };
+  const recordCount = ['users','products','customers','sales','sale_items','returns','expenses','customer_payments','customer_ledger','customer_payment_plans','customer_communications','customer_merge_records','drawer_shifts'].reduce((count, key) => count + (Array.isArray((raw as unknown as Record<string, unknown>)[key]) ? ((raw as unknown as Record<string, unknown>)[key] as unknown[]).length : 0), 0);
+  const { data, error } = await supabase.from('cloud_backups').insert({
+    store_id: prefs.cloud_store_id,
+    name: `نسخة ${new Date().toLocaleString('ar-YE')}`,
+    payload: snapshot,
+    record_count: recordCount,
+  }).select('id,created_at,record_count').single();
+  if (error) throw error;
+  return { id: String(data.id), createdAt: String(data.created_at), recordCount: Number(data.record_count || recordCount) };
+}
+
+export async function restoreCloudSnapshot(): Promise<CloudSnapshotResult> {
+  if (!supabase) throw new Error('الاتصال السحابي غير مهيأ.');
+  const prefs = db.getSharedPreferences();
+  if (!prefs.cloud_store_id) throw new Error('سجّل دخول المتجر وسجّل المزامنة السحابية أولاً.');
+  const { data, error } = await supabase.from('cloud_backups').select('id,created_at,record_count,payload').eq('store_id', prefs.cloud_store_id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('لا توجد نسخة سحابية كاملة محفوظة لهذا المتجر.');
+  const restored = data.payload as unknown as DatabaseState;
+  if (!restored || !Array.isArray(restored.users) || !Array.isArray(restored.products) || !Array.isArray(restored.sales)) {
+    throw new Error('النسخة السحابية غير صالحة أو غير مكتملة؛ لم يتم تغيير البيانات المحلية.');
+  }
+  const localUsers = db.getRawState().users;
+  const users = restored.users.map((user) => {
+    const localUser = localUsers.find((candidate) => candidate.id === user.id || candidate.phone === user.phone);
+    return localUser ? { ...user, password: localUser.password, pin_code: localUser.pin_code } : user;
+  });
+  db.restoreFromRawState({ ...restored, users });
+  await synchronizeStore();
+  return { id: String(data.id), createdAt: String(data.created_at), recordCount: Number(data.record_count || 0) };
+}
 
 export async function synchronizeStore(): Promise<SyncResult> {
   if (activeSync) return activeSync;

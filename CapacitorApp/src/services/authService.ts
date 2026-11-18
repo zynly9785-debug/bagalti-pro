@@ -22,12 +22,24 @@ export type StoreProfile = {
 
 const STORE_FIELDS = 'id,owner_user_id,local_store_id,store_name,owner_name,phone,governorate,district,neighborhood,status,subscription_end,subscription_price,suspension_reason';
 
+async function hashOfflineCredential(phone: string, password: string): Promise<string> {
+  const value = `${normalizePhoneForAuth(phone)}\n${password}`;
+  if (globalThis.crypto?.subtle) {
+    const bytes = new TextEncoder().encode(value);
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
 function requireSupabase() {
   if (!supabase) throw new Error('الاتصال السحابي غير مهيأ في هذه النسخة.');
   return supabase;
 }
 
-function localProfile(store: StoreProfile, authUser: SupabaseUser, phone: string): User {
+function localProfile(store: StoreProfile, authUser: SupabaseUser, phone: string, offlinePasswordHash?: string): User {
   const profile = {
     store_name: store.store_name,
     owner_name: store.owner_name,
@@ -62,6 +74,7 @@ function localProfile(store: StoreProfile, authUser: SupabaseUser, phone: string
     status: store.status,
     is_suspended_flag: store.status === 'suspended',
     last_phone: phone,
+    offline_password_hash: offlinePasswordHash || db.getSharedPreferences().offline_password_hash,
   });
   return localUser;
 }
@@ -121,19 +134,42 @@ export async function registerMerchant(input: {
     db.updateUserProfile(local.id, { store_name: input.storeName.trim(), owner_name: input.ownerName.trim(), phone, password: '', governorate: input.governorate.trim(), district: input.district.trim(), neighborhood: input.neighborhood.trim() });
   }
   const store = await findOrCreateStore(data.user, phone);
-  return localProfile(store, data.user, phone);
+  const offlinePasswordHash = await hashOfflineCredential(phone, input.password);
+  return localProfile(store, data.user, phone, offlinePasswordHash);
+}
+
+export async function changeMerchantPassword(phoneInput: string, currentPassword: string, newPassword: string): Promise<void> {
+  const client = requireSupabase();
+  const phone = normalizePhoneForAuth(phoneInput);
+  if (newPassword.length < 8) throw new Error('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل.');
+  const alias = authAliasForPhone(phone);
+  const reauth = await client.auth.signInWithPassword({ email: alias, password: currentPassword });
+  if (reauth.error) throw new Error('كلمة المرور الحالية غير صحيحة.');
+  const { error } = await client.auth.updateUser({ password: newPassword });
+  if (error) throw new Error(error.message);
+  const offlineHash = await hashOfflineCredential(phone, newPassword);
+  db.saveSharedPreferences({ offline_password_hash: offlineHash });
 }
 
 export async function signInMerchant(phoneInput: string, password: string, allowCachedBiometric = false): Promise<User> {
-  const client = requireSupabase();
   const phone = normalizePhoneForAuth(phoneInput);
+  const offlineHash = await hashOfflineCredential(phone, password);
+  const prefs = db.getSharedPreferences();
+  const local = db.findUserByPhone(phone);
+  const offlineAllowed = typeof navigator !== 'undefined' && !navigator.onLine;
+  if (offlineAllowed) {
+    if (prefs.offline_password_hash && prefs.offline_password_hash === offlineHash && local) return local;
+    throw new Error('لا يوجد اتصال بالإنترنت وبيانات الدخول غير محفوظة لهذا الجهاز. اتصل بالإنترنت مرة واحدة ثم أعد المحاولة.');
+  }
+  const client = requireSupabase();
   try {
     const { data, error } = await client.auth.signInWithPassword({ email: authAliasForPhone(phone), password });
     if (error) throw new Error(error.message);
     if (!data.user) throw new Error('تعذر التحقق من الحساب.');
     const store = await findOrCreateStore(data.user, phone);
-    return localProfile(store, data.user, phone);
+    return localProfile(store, data.user, phone, offlineHash);
   } catch (error) {
+    if (prefs.offline_password_hash && prefs.offline_password_hash === offlineHash && local) return local;
     if (allowCachedBiometric) {
       const { data: cached } = await client.auth.getSession();
       const prefs = db.getSharedPreferences();

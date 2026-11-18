@@ -1,7 +1,7 @@
 {
   "name": "baqalati-pro",
   "private": true,
-  "version": "1.4.3",
+  "version": "1.4.4",
   "type": "module",
   "packageManager": "npm@10.9.9",
   "scripts": {

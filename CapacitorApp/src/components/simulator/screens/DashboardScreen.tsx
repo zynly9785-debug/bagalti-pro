@@ -21,6 +21,7 @@ import {
   Printer,
   Calendar,
   Layers,
+  Archive,
 } from 'lucide-react';
 import { db } from '../../../db/sqlite-simulation.ts';
 import { formatCurrency, checkItemExpiryStatus } from '../../../utils/pureLogic.ts';
@@ -56,12 +57,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const [isZReportOpen, setIsZReportOpen] = useState(false);
   const [zReportData, setZReportData] = useState<any>(null);
   const [backupNotice, setBackupNotice] = useState<string | null>(null);
+  const [isOpenShiftModal, setIsOpenShiftModal] = useState(false);
+  const [shiftUserName, setShiftUserName] = useState('');
+  const [openingCash, setOpeningCash] = useState('');
+  const [closingCash, setClosingCash] = useState('');
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false);
+  const [archiveTab, setArchiveTab] = useState<'sales'|'customers'|'products'>('sales');
+  const [activeShift, setActiveShift] = useState(db.getActiveDrawerShift(storeId));
 
   useEffect(() => {
     loadData();
   }, [storeId]);
 
   const loadData = () => {
+    setActiveShift(db.getActiveDrawerShift(storeId));
     const s = db.getDashboardStats(storeId);
     setStats(s);
 
@@ -70,7 +79,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       setStoreName(user.store_name);
     }
 
-    const sales = db.getSales(storeId).slice(0, 5);
+    const sales = db.getActiveSales(storeId).slice(0, 5);
     setRecentSales(sales);
 
     // Check expiring products
@@ -83,9 +92,49 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   };
 
   const handleOpenZReport = () => {
-    const report = db.getDailyZReport(storeId);
+    if (!activeShift) {
+      setBackupNotice('افتح الدرج أولاً وأدخل اسم المستخدم وقيمة الوردية');
+      window.setTimeout(() => setBackupNotice(null), 4000);
+      return;
+    }
+    const report = db.getDrawerShiftReport(storeId, activeShift.id);
     setZReportData(report);
     setIsZReportOpen(true);
+  };
+
+  const handleOpenDrawer = () => {
+    setShiftUserName(activeShift?.operator_name || '');
+    setOpeningCash(String(activeShift?.opening_amount ?? ''));
+    setIsOpenShiftModal(true);
+  };
+
+  const confirmOpenDrawer = () => {
+    try {
+      const shift = db.openDrawerShift(storeId, shiftUserName, Number(openingCash) || 0);
+      setActiveShift(shift);
+      setIsOpenShiftModal(false);
+      setBackupNotice(`تم فتح الدرج للمستخدم ${shift.operator_name}`);
+      window.setTimeout(() => setBackupNotice(null), 4000);
+    } catch (error) {
+      setBackupNotice(error instanceof Error ? error.message : 'تعذر فتح الدرج');
+      window.setTimeout(() => setBackupNotice(null), 4000);
+    }
+  };
+
+  const confirmCloseDrawer = async () => {
+    try {
+      const closing = Number(closingCash);
+      const closed = db.closeDrawerShift(storeId, closing, activeShift?.operator_name);
+      setZReportData(closed.report);
+      setActiveShift(null);
+      setClosingCash('');
+      await createLocalBackup(storeId).catch(() => undefined);
+      setBackupNotice(`تم إغلاق الدرج للمستخدم ${closed.operator_name} وإنشاء تقرير الوردية`);
+      window.setTimeout(() => setBackupNotice(null), 6000);
+    } catch (error) {
+      setBackupNotice(error instanceof Error ? error.message : 'تعذر إغلاق الدرج');
+      window.setTimeout(() => setBackupNotice(null), 5000);
+    }
   };
 
   return (
@@ -104,12 +153,31 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
         <div className="flex items-center gap-1.5">
           <button
+            onClick={handleOpenDrawer}
+            disabled={!!activeShift}
+            className="bg-white/15 hover:bg-white/25 disabled:opacity-50 text-white text-xs font-bold px-2.5 py-1.5 rounded-xl flex items-center gap-1 border border-white/20"
+            title="فتح الدرج وبدء وردية المستخدم"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>{activeShift ? 'الدرج مفتوح' : 'فتح الدرج'}</span>
+          </button>
+
+          <button
             onClick={handleOpenZReport}
             className="bg-white/15 hover:bg-white/25 text-[#C9A961] text-xs font-bold px-2.5 py-1.5 rounded-xl flex items-center gap-1 border border-[#C9A961]/30 shadow-xs transition"
             title="تقرير إغلاق الدرج والوردية اليومية"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
             <span>إغلاق الدرج</span>
+          </button>
+
+          <button
+            onClick={() => setIsArchiveOpen(true)}
+            className="bg-white/15 hover:bg-white/25 text-white text-xs font-bold px-2.5 py-1.5 rounded-xl flex items-center gap-1 border border-white/20"
+            title="عرض العناصر والأرشيف"
+          >
+            <Archive className="w-3.5 h-3.5" />
+            <span>الأرشيف</span>
           </button>
 
           <button
@@ -312,6 +380,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </div>
       </div>
 
+      {isOpenShiftModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
+          <div className="bg-[#FAF8F3] rounded-3xl w-full max-w-sm p-5 border-2 border-[#C9A961] space-y-3">
+            <h3 className="font-bold text-sm text-[#0B3D2E]">فتح الدرج وبدء وردية عمل</h3>
+            <div>
+              <label className="block text-xs font-bold mb-1 text-gray-700">اسم المستخدم / الكاشير:</label>
+              <input value={shiftUserName} onChange={(e)=>setShiftUserName(e.target.value)} placeholder="اكتب اسم الموظف" className="w-full rounded-xl border border-gray-300 p-2.5 text-sm" required />
+            </div>
+            <div>
+              <label className="block text-xs font-bold mb-1 text-gray-700">قيمة النقد عند فتح الوردية:</label>
+              <input type="number" min="0" value={openingCash} onChange={(e)=>setOpeningCash(e.target.value)} placeholder="مثال: 5000" className="w-full rounded-xl border border-gray-300 p-2.5 text-sm font-mono" required />
+            </div>
+            <div className="flex gap-2"><button onClick={confirmOpenDrawer} className="flex-1 bg-[#0B3D2E] text-white py-2.5 rounded-xl text-xs font-bold">فتح الدرج وبدء الوردية</button><button onClick={()=>setIsOpenShiftModal(false)} className="px-4 border border-gray-300 rounded-xl text-xs">إلغاء</button></div>
+          </div>
+        </div>
+      )}
+
       {/* Daily Shift Closing / Z-Report Modal */}
       {isZReportOpen && zReportData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
@@ -332,7 +417,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             </div>
 
             <p className="text-[11px] text-gray-500 font-mono">
-              تاريخ اليوم: {zReportData.date} | المتجر: {storeName}
+              المتجر: {storeName} | المستخدم: {zReportData.shift?.operator_name || '-'}<br/>
+              فتح الوردية: {zReportData.shift?.opening_at?.replace('T',' ').slice(0,19) || '-'} | قيمة البداية: {formatCurrency(zReportData.openingAmount)}
             </p>
 
             <div className="bg-white rounded-2xl p-3 border border-gray-200 space-y-2 text-xs font-mono">
@@ -372,16 +458,44 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               </div>
             </div>
 
-            <p className="text-[10px] text-gray-500 text-center">
-              يطابق هذا المبلغ النقدية الفعلية الموجودة في صندوق درج الكاشير قبل تسليم الوردية.
-            </p>
+            <div className="max-h-32 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 text-[10px] space-y-1">
+              <p className="font-bold text-[#0B3D2E]">عمليات الوردية</p>
+              {zReportData.sales?.length ? zReportData.sales.map((sale: any) => (
+                <div key={`sale-${sale.id}`} className="flex justify-between"><span>فاتورة #{sale.id} — {sale.operator_name || zReportData.shift?.operator_name}</span><b>{formatCurrency(sale.total_amount)}</b></div>
+              )) : <p className="text-gray-400">لا توجد فواتير في هذه الوردية.</p>}
+              {zReportData.payments?.map((payment: any) => <div key={`pay-${payment.id}`} className="flex justify-between text-emerald-700"><span>سند قبض #{payment.receipt_number}</span><b>{formatCurrency(payment.amount)}</b></div>)}
+              {zReportData.returns?.map((r: any) => <div key={`ret-${r.id}`} className="flex justify-between text-amber-700"><span>مرتجع #{r.id}</span><b>{formatCurrency(r.amount)}</b></div>)}
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold mb-1 text-gray-700">النقدية الفعلية عند الإغلاق:</label>
+              <input type="number" min="0" value={closingCash} onChange={(e)=>setClosingCash(e.target.value)} placeholder={`المتوقع: ${zReportData.expectedCash || 0}`} className="w-full rounded-xl border border-gray-300 p-2.5 text-sm font-mono" />
+            </div>
 
             <button
-              onClick={async () => { setIsZReportOpen(false); try { const msg = await createLocalBackup(storeId); setBackupNotice(`تم إغلاق الدرج وإنشاء النسخة الاحتياطية: ${msg}`); } catch (e) { setBackupNotice(e instanceof Error ? `أُغلق التقرير لكن فشل النسخ: ${e.message}` : 'فشل إنشاء النسخة'); } setTimeout(() => setBackupNotice(null), 6000); }}
-              className="w-full bg-[#0B3D2E] text-white py-2.5 rounded-xl font-bold text-xs hover:bg-[#06231A]"
+              onClick={confirmCloseDrawer}
+              disabled={!closingCash || Number(closingCash) < 0}
+              className="w-full bg-[#0B3D2E] text-white py-2.5 rounded-xl font-bold text-xs disabled:opacity-50"
             >
-              إتمام الإغلاق وإنشاء نسخة احتياطية
+              إتمام الإغلاق وتوليد تقرير الوردية
             </button>
+          </div>
+        </div>
+      )}
+
+      {isArchiveOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4">
+          <div className="w-full max-w-md max-h-[88vh] overflow-hidden rounded-3xl border border-[#C9A961] bg-[#FAF8F3] shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between border-b p-4"><div><h3 className="font-bold text-sm text-[#0B3D2E]">الأرشيف والبيانات المخفية</h3><p className="text-[10px] text-gray-500">الفواتير والعملاء والأصناف المؤرشفة</p></div><button onClick={()=>setIsArchiveOpen(false)} className="rounded-full px-2 py-1 text-lg text-gray-500">×</button></div>
+            <div className="flex gap-2 p-3 text-xs">{([['sales','الفواتير'],['customers','العملاء'],['products','الأصناف']] as const).map(([tab,label])=><button key={tab} onClick={()=>setArchiveTab(tab)} className={`flex-1 rounded-xl border py-2 font-bold ${archiveTab===tab?'bg-[#0B3D2E] text-white border-[#C9A961]':''}`}>{label}</button>)}</div>
+            <div className="flex-1 overflow-y-auto space-y-2 p-3">
+              {archiveTab==='sales' && db.getArchivedSales(storeId).map(sale=><div key={sale.id} className="rounded-xl border bg-white p-3 flex items-center justify-between"><div><b className="text-xs">فاتورة #{sale.id}</b><p className="text-[10px] text-gray-500">{sale.created_at} • {formatCurrency(sale.total_amount)}</p></div><button onClick={()=>{db.restoreSale(storeId,sale.id);setIsArchiveOpen(false);loadData();}} className="rounded-lg border border-emerald-300 px-3 py-1.5 text-[10px] font-bold text-emerald-700">استعادة</button></div>)}
+              {archiveTab==='sales' && db.getArchivedSales(storeId).length===0 && <p className="py-10 text-center text-xs text-gray-400">لا توجد فواتير مؤرشفة.</p>}
+              {archiveTab==='customers' && db.getArchivedCustomers(storeId).map(customer=><div key={customer.id} className="rounded-xl border bg-white p-3 flex items-center justify-between"><div><b className="text-xs">{customer.name}</b><p className="text-[10px] text-gray-500">رقم العميل #{customer.id} • {customer.phone||'بدون هاتف'}</p></div><button onClick={()=>{db.restoreCustomer(storeId,customer.id);loadData();}} className="rounded-lg border border-emerald-300 px-3 py-1.5 text-[10px] font-bold text-emerald-700">استعادة</button></div>)}
+              {archiveTab==='customers' && db.getArchivedCustomers(storeId).length===0 && <p className="py-10 text-center text-xs text-gray-400">لا يوجد عملاء مؤرشفون.</p>}
+              {archiveTab==='products' && db.getArchivedProducts(storeId).map(product=><div key={product.id} className="rounded-xl border bg-white p-3 flex items-center justify-between"><div><b className="text-xs">{product.name}</b><p className="text-[10px] text-gray-500">باركود {product.barcode}</p></div><button onClick={()=>{db.restoreProduct(storeId,product.id);loadData();}} className="rounded-lg border border-emerald-300 px-3 py-1.5 text-[10px] font-bold text-emerald-700">استعادة</button></div>)}
+              {archiveTab==='products' && db.getArchivedProducts(storeId).length===0 && <p className="py-10 text-center text-xs text-gray-400">لا توجد أصناف مؤرشفة.</p>}
+            </div>
           </div>
         </div>
       )}

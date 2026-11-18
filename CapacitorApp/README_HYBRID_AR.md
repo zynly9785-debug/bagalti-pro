@@ -1,11 +1,11 @@
-# بقالتي برو — إصدار Capacitor الهجين 1.4.3
+# بقالتي برو — إصدار Capacitor الهجين 1.4.4
 
 هذا المجلد هو إصدار Android المبني بـ React وCapacitor، ويحتفظ بقاعدة SQLite/SQLCipher محلية مع مزامنة سحابية متعددة المتاجر عبر Supabase. لا تضع أي مفتاح `service_role` داخل التطبيق أو ملف البيئة الخاص بالبناء.
 
 ## إعداد البناء
 
 1. استخدم Node.js 24 أو أحدث وAndroid SDK/JDK المتوافقين مع Gradle wrapper.
-2. نفّذ `npm ci`.
+2. نفّذ `npm ci --legacy-peer-deps`.
 3. انسخ `.env.example` إلى `.env.local` وأدخل `VITE_SUPABASE_URL` و`VITE_SUPABASE_PUBLISHABLE_KEY` فقط.
 4. نفّذ `npm run build` ثم `npx cap sync android`.
 5. لبناء APK تجريبي: `cd android && ./gradlew assembleDebug`. الملف الناتج في `android/app/build/outputs/apk/debug/app-debug.apk`.
@@ -33,4 +33,14 @@
 
 ## قبل التوزيع العام
 
-هذا APK هو `debug` غير موقّع بمفتاح إنتاج. يلزم إنشاء مفتاح توقيع release وحفظه خارج المستودع، ثم بناء `assembleRelease` قبل النشر العام. اختبر التسجيل، إعادة تسجيل الدخول، البيع دون اتصال، المزامنة بعد عودة الشبكة، واستعادة نسخة SQLite على جهاز Android فعلي.
+يُنتج GitHub Actions نسخة `debug` للتحقق فقط. لن ينشر رابط تنزيل دائم إلا بعد إضافة أسرار التوقيع التالية إلى إعدادات Actions في المستودع:
+
+- `ANDROID_SIGNING_KEY_BASE64`: محتوى ملف keystore بترميز Base64.
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_STORE_PASSWORD`
+- `ANDROID_KEY_PASSWORD`
+
+يبني سير العمل نسخة `release` موقعة بالمفتاح نفسه، ويرفعها إلى GitHub Releases باسم `BaqalatyPro.apk`. بعد نجاح أول نشر موقّع، يكون رابط التنزيل الدائم:
+`https://github.com/zynly9785-debug/bagalti-pro/releases/latest/download/BaqalatyPro.apk`
+
+لا ترفع ملف keystore إلى GitHub ولا تغيّر المفتاح بعد النشر؛ المفتاح نفسه مطلوب لكل تحديث حتى يثبت Android التطبيق فوق النسخة السابقة. اختبر التسجيل، إعادة تسجيل الدخول، البيع دون اتصال، المزامنة بعد عودة الشبكة، واستعادة نسخة SQLite على جهاز Android فعلي.

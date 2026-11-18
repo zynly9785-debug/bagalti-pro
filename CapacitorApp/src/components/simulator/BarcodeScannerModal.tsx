@@ -22,6 +22,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ storeI
   const startingRef = useRef(false);
   const handledRef = useRef(false);
   const activeProducts = db.getProducts(storeId);
+  const idleTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -47,7 +48,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ storeI
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error('هذا النظام لا يتيح للمتصفح الوصول إلى الكاميرا. حدّث WebView/المتصفح أو استخدم ماسح باركود خارجي.');
       }
-      const reader = new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts: 180 });
+      const reader = new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts: 1000 });
       const controls = await reader.decodeFromConstraints(
         { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
         videoRef.current ?? undefined,
@@ -56,6 +57,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ storeI
             handledRef.current = true;
             const value = result.getText().trim();
             if (value) {
+              if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
               controlsRef.current?.stop();
               onBarcodeDetected(value);
             }
@@ -68,6 +70,15 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ storeI
         },
       );
       controlsRef.current = controls;
+      if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = window.setTimeout(() => {
+        if (!handledRef.current) {
+          controls.stop();
+          controlsRef.current = null;
+          setCameraActive(false);
+          setCameraError('انتهت مهلة البحث ولم يُعثر على باركود. حرك الرمز أو أدخل الكود يدوياً ثم أعد التشغيل.');
+        }
+      }, 30000);
       if (!handledRef.current) setCameraActive(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'تعذر تشغيل الكاميرا';
@@ -79,6 +90,8 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ storeI
   };
 
   const stopCamera = () => {
+    if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = null;
     controlsRef.current?.stop();
     controlsRef.current = null;
     const stream = videoRef.current?.srcObject as MediaStream | null;
