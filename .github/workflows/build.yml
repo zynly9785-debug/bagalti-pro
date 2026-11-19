@@ -51,9 +51,6 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android SDK licenses
-        run: sdkmanager --licenses < <(yes)
-
       - name: Sync Capacitor Android project
         working-directory: CapacitorApp
         run: npx cap sync android
