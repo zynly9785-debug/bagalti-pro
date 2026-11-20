@@ -3,11 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Printer, X, Check, Share2 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pureLogic.ts';
 import { SaleItem } from '../../types/index.ts';
 import { db } from '../../db/sqlite-simulation.ts';
+import { printReceiptOverBluetooth } from '../../services/bluetoothPrinter.ts';
 
 interface ReceiptPrintModalProps {
   isOpen: boolean;
@@ -36,13 +38,44 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({
   customerName,
   dateStr,
 }) => {
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState('');
   if (!isOpen) return null;
   const preferences = db.getSharedPreferences();
   const receiptFooter = preferences.receipt_footer?.trim() || 'شكراً لتسوقكم معنا ونسعد بخدمتكم دائماً';
   const receiptWidth = preferences.receipt_width_mm === '80' ? '300px' : '220px';
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    const printerAddress = preferences.thermal_printer_address;
+    if (!Capacitor.isNativePlatform() || !printerAddress) {
+      window.print();
+      return;
+    }
+    const lines = [
+      storeName,
+      `فاتورة: #${saleId}    ${dateStr}`,
+      ...(customerName ? [`العميل: ${customerName}`] : []),
+      '--------------------------------',
+      'الصنف | الكمية × السعر | الإجمالي',
+      ...items.map((item) => `${item.product_name || `صنف #${item.product_id}`} | ${item.qty} × ${item.price} | ${formatCurrency(item.qty * item.price)}`),
+      '--------------------------------',
+      `الإجمالي: ${formatCurrency(totalAmount)}`,
+      `المدفوع: ${formatCurrency(paidAmount)}`,
+      ...(remainingAmount > 0 ? [`المتبقي: ${formatCurrency(remainingAmount)}`] : []),
+      `طريقة الدفع: ${paymentType}`,
+      '',
+      receiptFooter,
+      '',
+    ];
+    setPrinting(true);
+    setPrintError('');
+    try {
+      await printReceiptOverBluetooth(printerAddress, lines.join('\n'));
+    } catch (error) {
+      setPrintError(error instanceof Error ? error.message : 'تعذرت طباعة الإيصال.');
+    } finally {
+      setPrinting(false);
+    }
   };
 
   return (
@@ -135,13 +168,15 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({
         </div>
 
         {/* Footer Actions */}
+        {printError && <p role="alert" className="px-3 py-2 text-xs text-red-700">{printError}</p>}
         <div className="p-3 bg-white border-t border-gray-200 flex gap-2">
           <button
-            onClick={handlePrint}
-            className="flex-1 bg-[#0B3D2E] text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-[#06231A]"
+            onClick={() => void handlePrint()}
+            disabled={printing}
+            className="flex-1 bg-[#0B3D2E] text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-[#06231A] disabled:opacity-50"
           >
             <Printer className="w-4 h-4 text-[#C9A961]" />
-            <span>طباعة الإيصال / حفظ PDF</span>
+            <span>{printing ? 'جارٍ إرسال الإيصال…' : 'طباعة الإيصال / حفظ PDF'}</span>
           </button>
           <button
             onClick={onClose}

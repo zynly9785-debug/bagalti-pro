@@ -640,9 +640,13 @@ class SQLiteDatabaseHelper {
   }
 
   // --- Sales & Sale Items operations ---
-  public insertFreeCustomerInvoice(storeId: number, customerId: number, params: { description: string; totalAmount: number; paidAmount: number; paymentType: 'نقداً' | 'آجل' | 'شبكة'; date?: string }): Sale {
+  public insertFreeCustomerInvoice(storeId: number, customerId: number, params: { description: string; totalAmount: number; paidAmount?: number; paymentType?: 'نقداً' | 'آجل' | 'شبكة'; date?: string; idempotencyKey?: string }): Sale {
     const customer = this.getCustomerById(storeId, customerId);
     if (!customer) throw new Error('العميل غير موجود');
+    const idempotentSale = params.idempotencyKey && this.state.sales.find((sale) =>
+      sale.store_id === storeId && sale.customer_id === customerId && sale.idempotency_key === params.idempotencyKey,
+    );
+    if (idempotentSale) return idempotentSale;
     const description = params.description.trim();
     const total = Number(params.totalAmount);
     const paid = Math.max(0, Number(params.paidAmount) || 0);
@@ -667,7 +671,9 @@ class SQLiteDatabaseHelper {
       discount_amount: 0,
       paid_amount: paid,
       remaining_amount: remaining,
-      payment_type: params.paymentType,
+      payment_type: params.paymentType || 'آجل',
+      notes: description,
+      idempotency_key: params.idempotencyKey,
       created_at: formattedDate,
       operator_name: activeShift?.operator_name,
       shift_id: activeShift?.id,

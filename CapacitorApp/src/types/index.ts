@@ -167,6 +167,8 @@ export interface Sale {
   paid_amount: number;
   remaining_amount: number;
   payment_type: 'نقداً' | 'آجل' | 'شبكة';
+  notes?: string;
+  idempotency_key?: string;
   created_at: string;
   operator_name?: string;
   shift_id?: number;
@@ -292,6 +294,7 @@ export interface SharedPreferences {
   cloud_backup_frequency?: 'manual' | 'daily' | 'weekly' | 'shift_close';
   auto_lock_minutes?: 1 | 5 | 15 | 30 | 60;
   thermal_printer?: string;
+  thermal_printer_address?: string;
   barcode_source?: 'camera' | 'external';
   tax_registration_number?: string;
   vat_enabled?: boolean;

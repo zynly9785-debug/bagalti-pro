@@ -90,12 +90,12 @@ jobs:
           BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/apk-signature.txt"
           "$BUILD_TOOLS/aapt" dump badging "$APK" > "$RUNNER_TEMP/apk-badging.txt"
-          grep -Fq "package: name='com.baqalatypro.pos' versionCode='10' versionName='1.4.4'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fq "package: name='com.baqalatypro.pos' versionCode='11' versionName='1.4.5'" "$RUNNER_TEMP/apk-badging.txt"
           SHA256="$(sha256sum "$APK" | cut -d ' ' -f 1)"
           echo "## Verified Android release" >> "$GITHUB_STEP_SUMMARY"
           echo "- APK: \`BaqalatyPro.apk\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Package: \`com.baqalatypro.pos\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Version: \`1.4.4 (10)\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: \`1.4.5 (11)\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- SHA-256: \`$SHA256\`" >> "$GITHUB_STEP_SUMMARY"
           grep -E 'Signer #1 certificate SHA-256 digest:' "$RUNNER_TEMP/apk-signature.txt" >> "$GITHUB_STEP_SUMMARY"
 
@@ -110,8 +110,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: steps.release.outputs.ready == 'true' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/hybrid-capacitor'
         with:
-          tag_name: v1.4.4
-          name: Baqalaty Pro v1.4.4 Release
+          tag_name: v1.4.5
+          name: Baqalaty Pro v1.4.5 Release
           prerelease: false
           make_latest: true
           files: CapacitorApp/BaqalatyPro.apk

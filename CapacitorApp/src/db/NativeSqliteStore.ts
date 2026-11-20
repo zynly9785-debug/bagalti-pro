@@ -6,6 +6,45 @@ const DATABASE_NAME = 'bagalati_pro';
 const DATABASE_VERSION = 1;
 
 type StoredRow = { entity: string; store_id: number; record_id: string; payload_json: string };
+type StateRecord = Record<string, unknown>;
+
+export function serializeDatabaseState(value: unknown): StoredRow[] {
+  const state = (value || {}) as Record<string, unknown>;
+  const rows: StoredRow[] = [];
+  const append = (entity: string, records: unknown, getId: (record: StateRecord) => unknown, getStore: (record: StateRecord) => unknown) => {
+    if (!Array.isArray(records)) return;
+    for (const value of records) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`سجل SQLite غير صالح في ${entity}`);
+      const record = value as StateRecord;
+      const id = getId(record);
+      if ((typeof id !== 'string' && typeof id !== 'number') || String(id).trim() === '') throw new Error(`معرّف SQLite غير صالح في ${entity}`);
+      const storeId = Number(getStore(record)) || 0;
+      rows.push({ entity, store_id: storeId, record_id: String(id), payload_json: JSON.stringify(record) });
+    }
+  };
+
+  const salesById = new Map<number, number>();
+  if (Array.isArray(state.sales)) {
+    for (const sale of state.sales as StateRecord[]) salesById.set(Number(sale.id), Number(sale.store_id) || 0);
+  }
+  append('users', state.users, (record) => record.id, (record) => record.id);
+  append('products', state.products, (record) => record.id, (record) => record.store_id);
+  append('customers', state.customers, (record) => record.id, (record) => record.store_id);
+  append('sales', state.sales, (record) => record.id, (record) => record.store_id);
+  append('sale_items', state.sale_items, (record) => record.id, (record) => salesById.get(Number(record.sale_id)) || 0);
+  append('returns', state.returns, (record) => record.id, (record) => record.store_id);
+  append('expenses', state.expenses, (record) => record.id, (record) => record.store_id);
+  append('subscription_packages', state.subscription_packages, (record) => record.id, () => 0);
+  append('parked_sales', state.parked_sales, (record) => record.id, (record) => record.store_id);
+  append('quick_products', state.quick_products, (record) => record.product_id, (record) => record.store_id);
+  append('customer_payments', state.customer_payments, (record) => record.id, (record) => record.store_id);
+  append('customer_ledger', state.customer_ledger, (record) => record.id, (record) => record.store_id);
+  append('customer_payment_plans', state.customer_payment_plans, (record) => record.id, (record) => record.store_id);
+  append('customer_communications', state.customer_communications, (record) => record.id, (record) => record.store_id);
+  append('customer_merge_records', state.customer_merge_records, (record) => record.id, (record) => record.store_id);
+  append('drawer_shifts', state.drawer_shifts, (record) => record.id, (record) => record.store_id);
+  return rows;
+}
 
 /** Native Android persistence backed by encrypted SQLite/SQLCipher. */
 export class NativeSqliteStore {
@@ -154,26 +193,7 @@ export class NativeSqliteStore {
   private rowKey(row: StoredRow): string { return `${row.entity}\u0000${row.store_id}\u0000${row.record_id}`; }
 
   private toRows(value: unknown): StoredRow[] {
-    const state = (value || {}) as Record<string, any>;
-    const rows: StoredRow[] = [];
-    const append = (entity: string, records: any[], getId: (record: any) => string | number, getStore: (record: any) => number) => {
-      for (const record of records || []) {
-        rows.push({ entity, store_id: Number(getStore(record)) || 0, record_id: String(getId(record)), payload_json: JSON.stringify(record) });
-      }
-    };
-
-    append('users', state.users || [], (record) => record.id, (record) => record.id);
-    append('products', state.products || [], (record) => record.id, (record) => record.store_id);
-    append('customers', state.customers || [], (record) => record.id, (record) => record.store_id);
-    append('sales', state.sales || [], (record) => record.id, (record) => record.store_id);
-    const salesById = new Map<number, number>((state.sales || []).map((sale: any) => [sale.id, sale.store_id]));
-    append('sale_items', state.sale_items || [], (record) => record.id, (record) => salesById.get(record.sale_id) || 0);
-    append('returns', state.returns || [], (record) => record.id, (record) => record.store_id);
-    append('expenses', state.expenses || [], (record) => record.id, (record) => record.store_id);
-    append('subscription_packages', state.subscription_packages || [], (record) => record.id, () => 0);
-    append('parked_sales', state.parked_sales || [], (record) => record.id, (record) => record.store_id);
-    append('quick_products', state.quick_products || [], (record) => record.product_id, (record) => record.store_id);
-    return rows;
+    return serializeDatabaseState(value);
   }
 
   private requireDatabase(): SQLiteDBConnection {

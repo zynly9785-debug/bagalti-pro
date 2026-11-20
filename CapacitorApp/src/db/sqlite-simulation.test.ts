@@ -8,6 +8,7 @@ const data = new Map<string, string>();
   removeItem: (key: string) => data.delete(key),
 };
 const { db, convertSaleUnitsToBaseUnits } = await import('./sqlite-simulation.ts');
+const { serializeDatabaseState } = await import('./NativeSqliteStore.ts');
 const base = () => ({ users: [], products: [{ id: 1, store_id: 1, name: 'سكر', barcode: '123', unit_type: 'كيلو', category: 'مواد', cost_price: 100, sale_price: 150, quantity: 10, min_stock: 1, is_active: 1 }], customers: [], sales: [], sale_items: [], returns: [], subscription_packages: [], parked_sales: [] });
 const sale = (qty: number) => db.completeSale({ store_id: 1, customer_id: null, total_amount: qty * 150, paid_amount: qty * 150, remaining_amount: 0, payment_type: 'نقداً', items: [{ product_id: 1, product_name: 'سكر', qty, price: 150 }] });
 
@@ -22,6 +23,47 @@ test('فاتورة حرة للعميل تتسجل في الفواتير والد
   const ledger = db.getCustomerLedger(1, customer.id);
   assert.equal(ledger.some((entry) => entry.reference === `FREE-${sale.id}` && entry.kind === 'invoice'), true);
   assert.equal(ledger.some((entry) => entry.reference === `FREE-${sale.id}` && entry.kind === 'payment'), true);
+});
+
+test('الفاتورة الحرة تضيف كامل المبلغ إلى رصيد العميل وتسجل الملاحظة دون تكرار', () => {
+  db.restoreFromRawState(base() as any);
+  const customer = db.insertCustomer(1, 'عميل فاتورة يدوية', '770123458', 0);
+  const invoice = { description: 'مشتريات يدوية على الحساب', totalAmount: 450, date: '2026-11-18', idempotencyKey: 'free-invoice-1' };
+  const first = db.insertFreeCustomerInvoice(1, customer.id, invoice);
+  const repeated = db.insertFreeCustomerInvoice(1, customer.id, invoice);
+
+  assert.equal(first.id, repeated.id);
+  assert.equal(first.notes, invoice.description);
+  assert.equal(db.getCustomerById(1, customer.id)?.total_debt, 450);
+  assert.equal(db.getCustomerSales(1, customer.id).length, 1);
+});
+
+test('SQLite يحفظ كل مجموعات البيانات المالية والمخزون كسجلات محلية', () => {
+  const rows = serializeDatabaseState({
+    users: [{ id: 1 }],
+    products: [{ id: 2, store_id: 1 }],
+    customers: [{ id: 3, store_id: 1 }],
+    sales: [{ id: 4, store_id: 1 }],
+    sale_items: [{ id: 5, sale_id: 4 }],
+    returns: [{ id: 6, store_id: 1 }],
+    expenses: [{ id: 7, store_id: 1 }],
+    subscription_packages: [{ id: 8 }],
+    parked_sales: [{ id: 'parked-9', store_id: 1 }],
+    quick_products: [{ product_id: 2, store_id: 1 }],
+    customer_payments: [{ id: 10, store_id: 1 }],
+    customer_ledger: [{ id: 11, store_id: 1 }],
+    customer_payment_plans: [{ id: 12, store_id: 1 }],
+    customer_communications: [{ id: 13, store_id: 1 }],
+    customer_merge_records: [{ id: 14, store_id: 1 }],
+    drawer_shifts: [{ id: 15, store_id: 1 }],
+  });
+
+  assert.deepEqual(
+    [...new Set(rows.map((row) => row.entity))].sort(),
+    ['customer_communications', 'customer_ledger', 'customer_merge_records', 'customer_payment_plans', 'customer_payments', 'customers', 'drawer_shifts', 'expenses', 'parked_sales', 'products', 'quick_products', 'returns', 'sale_items', 'sales', 'subscription_packages', 'users'].sort(),
+  );
+  assert.equal(rows.find((row) => row.entity === 'customer_payments')?.record_id, '10');
+  assert.equal(rows.find((row) => row.entity === 'sale_items')?.store_id, 1);
 });
 
 test('أرشفة الفاتورة تخفيها من النشط دون حذفها من كشف الحساب أو التقارير', () => {

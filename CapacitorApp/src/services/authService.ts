@@ -138,16 +138,22 @@ export async function registerMerchant(input: {
   return localProfile(store, data.user, phone, offlinePasswordHash);
 }
 
-export async function changeMerchantPassword(phoneInput: string, currentPassword: string, newPassword: string): Promise<void> {
+export async function changeMerchantPassword(storeId: number, currentPassword: string, newPassword: string): Promise<void> {
   const client = requireSupabase();
-  const phone = normalizePhoneForAuth(phoneInput);
   if (newPassword.length < 8) throw new Error('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل.');
-  const alias = authAliasForPhone(phone);
-  const reauth = await client.auth.signInWithPassword({ email: alias, password: currentPassword });
+  if (!currentPassword) throw new Error('أدخل كلمة المرور الحالية.');
+  const { data: current, error: currentError } = await client.auth.getUser();
+  if (currentError || !current.user?.email) throw new Error('انتهت جلسة الدخول. سجّل الدخول مجدداً ثم أعد المحاولة.');
+  const reauth = await client.auth.signInWithPassword({ email: current.user.email, password: currentPassword });
   if (reauth.error) throw new Error('كلمة المرور الحالية غير صحيحة.');
+  if (reauth.data.user?.id !== current.user.id) throw new Error('تعذر التحقق من الحساب الحالي بأمان.');
   const { error } = await client.auth.updateUser({ password: newPassword });
   if (error) throw new Error(error.message);
-  const offlineHash = await hashOfflineCredential(phone, newPassword);
+  const aliasLocalPart = current.user.email.split('@')[0];
+  const localPhone = /^p\d+$/.test(aliasLocalPart)
+    ? `+${aliasLocalPart.slice(1)}`
+    : String(current.user.user_metadata?.phone || db.findUserById(storeId)?.phone || '');
+  const offlineHash = await hashOfflineCredential(localPhone, newPassword);
   db.saveSharedPreferences({ offline_password_hash: offlineHash });
 }
 
