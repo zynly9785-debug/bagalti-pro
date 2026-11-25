@@ -154,7 +154,42 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 </p>
               </div>
 
-              {/* Package 1: Full Source Code Repository */}
+                            {/* Package 1: v1.4.6 Complete Source Code ZIP */}
+              <div className="bg-white border-2 border-emerald-500 rounded-2xl p-5 shadow-sm space-y-3 hover:border-emerald-600 transition">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-900 flex items-center justify-center font-bold">
+                      <FolderCode className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm text-[#0B3D2E]">
+                        حزمة سورس كود الإصدار 1.4.6 الشاملة (bagalti-pro-v1.4.6.zip)
+                      </h4>
+                      <span className="text-[11px] text-gray-500">
+                        يشمل: كافة ملفات التحديث (مشاركة بدون إنترنت، أسماء 4 حقول مركبة، قاعدة البيانات)
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono font-bold bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded">
+                    الإصدار الأحدث v1.4.6
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  تحميل الحزمة المضغوطة الكاملة المحدثة للإصدار 1.4.6 جاهزة للاستخدام والاستنساخ والرفع اليدوي إلى المستودع الحالي.
+                </p>
+                <div className="pt-1">
+                  <a
+                    href="/bagalti-pro-v1.4.6.zip"
+                    download="bagalti-pro-v1.4.6.zip"
+                    className="w-full py-2.5 px-4 bg-emerald-800 hover:bg-emerald-900 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 transition shadow-md"
+                  >
+                    <ArrowDownToLine className="w-4 h-4 text-[#C9A961]" />
+                    <span>تحميل حزمة سورس كود الإصدار 1.4.6 (bagalti-pro-v1.4.6.zip)</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Package 2: Full Source Code Repository */}
               <div className="bg-white border-2 border-amber-400 rounded-2xl p-5 shadow-sm space-y-3 hover:border-amber-500 transition">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
@@ -175,7 +210,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                  ارفع محتويات هذا الملف إلى مستودع GitHub جديد، وسيقوم <strong>GitHub Actions</strong> تلقائياً ببناء التطبيق وتوليد ملف <strong>app-debug.apk</strong> جاهز للتحميل من تبويب Actions!
+                  ارفع محتويات هذا الملف إلى مستودع GitHub، وسيقوم <strong>GitHub Actions</strong> تلقائياً ببناء التطبيق وتوليد ملف <strong>app-debug.apk</strong> جاهز للتحميل من تبويب Actions!
                 </p>
                 <div className="pt-1">
                   <a
