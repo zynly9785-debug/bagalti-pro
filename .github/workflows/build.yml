@@ -44,14 +44,15 @@ jobs:
             sed -i "s|sb_publishable_REPLACE_WITH_PROJECT_PUBLISHABLE_KEY|$VITE_SUPABASE_PUBLISHABLE_KEY|g" .env.local
           fi
           npm install --legacy-peer-deps
+          npm install --no-save --legacy-peer-deps @capacitor/android@^8.6.2 @capacitor/cli@^8.6.2
 
       - name: Build web & sync Capacitor Android
         run: |
           npm run build
           if [ ! -d "android" ]; then
-            npx --yes @capacitor/cli add android
+            npx cap add android
           fi
-          npx --yes @capacitor/cli sync android
+          npx cap sync android
 
       - name: Build Debug APK
         run: |
