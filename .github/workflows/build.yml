@@ -1,7 +1,56 @@
-name: Build Android APK                              on:                                                    push:                                                  branches: [ "main" ]                               pull_request:                                          branches: [ "main" ]                               workflow_dispatch:                                                                                      jobs:                                                  build:                                                 runs-on: ubuntu-latest                               steps:                                                 - name: Checkout the code                              uses: actions/checkout@v4                                                                               - name: Set up JDK 17                                  uses: actions/setup-java@v4                          with:                                                  distribution: 'temurin'                              java-version: '17'                                                                                    - name: Install Android SDK packages                   run: |                                                 SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"                                                             mkdir -p "$SDK_ROOT/cmdline-tools"
+cat << 'EOF' > "$TMPDIR/build_clean.yml"
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK
+        run: |
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          mkdir -p "$SDK_ROOT/cmdline-tools"
           if [ ! -d "$SDK_ROOT/cmdline-tools/latest" ]; then
-            curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/cmdtools.zip                                            unzip -q /tmp/cmdtools.zip -d /tmp/cmdtools_tmp                                                           mv /tmp/cmdtools_tmp/cmdline-tools "$SDK_ROOT/cmdline-tools/latest"                                     fi                                                   yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" --licenses > /dev/null                                                            "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" "platform-tools" "platforms;android-34" "build-tools;34.0.0"                                                                             - name: Auto Clean and Build Android App               run: |                                                 echo "=== التنظيف التلقائي وترتيب المجلدات ==="                                                           rm -rf BagaltiPro/build_backup_* || true             cd BagaltiPro                                        if [ -f "./gradlew" ]; then                            chmod +x ./gradlew                                   ./gradlew assembleDebug
-          else                                                   gradle assembleDebug
-          fi                                         
-      - name: Upload APK artifact                            uses: actions/upload-artifact@v4
-        with:                                                  name: app-debug                                      path: '**/build/outputs/apk/debug/*.apk'
+            curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/cmdtools.zip
+            unzip -q /tmp/cmdtools.zip -d /tmp/cmdtools_tmp
+            mv /tmp/cmdtools_tmp/cmdline-tools "$SDK_ROOT/cmdline-tools/latest"
+          fi
+          yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" --licenses > /dev/null
+          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Build APK
+        run: |
+          echo "=== التنظيف التلقائي وترتيب المجلدات ==="
+          rm -rf BagaltiPro/build_backup_* || true
+          cd BagaltiPro
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug
+          else
+            gradle assembleDebug
+          fi
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: "**/build/outputs/apk/debug/*.apk"
+EOF
+cat "$TMPDIR/build_clean.yml"
