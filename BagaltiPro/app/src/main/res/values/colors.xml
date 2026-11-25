@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- الألوان الصارمة المحددة في النظام -->
+    <color name="primary_emerald">#0B3D2E</color>
+    <color name="secondary_gold">#C9A961</color>
+    <color name="background_ivory">#FAF8F3</color>
+    <color name="danger_red">#8B2E2E</color>
+
+    <!-- مشتقات وتدرجات متناسقة -->
+    <color name="primary_dark">#06231A</color>
+    <color name="gold_light">#E5CF98</color>
+    <color name="white">#FFFFFF</color>
+    <color name="text_dark">#1F2937</color>
+    <color name="text_muted">#6B7280</color>
+    <color name="card_background">#FFFFFF</color>
+    <color name="border_light">#E5E7EB</color>
+</resources>

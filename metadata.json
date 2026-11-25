@@ -1,0 +1,6 @@
+{
+  "name": "بقالة بلس - نظام إدارة البقالة ونقاط البيع (Android Native POS)",
+  "description": "تطبيق أندرويد أصلي متكامل ومحاكي تفاعلي لإدارة البقالات ونقاط البيع والحسابات والمخزون بلغة Java و XML مع مستودع الكود الكامل.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
