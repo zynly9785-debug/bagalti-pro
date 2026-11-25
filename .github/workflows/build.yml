@@ -43,7 +43,7 @@ jobs:
           if [ -n "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
             sed -i "s|sb_publishable_REPLACE_WITH_PROJECT_PUBLISHABLE_KEY|$VITE_SUPABASE_PUBLISHABLE_KEY|g" .env.local
           fi
-          npm ci --legacy-peer-deps
+          npm install --legacy-peer-deps
 
       - name: Build web & sync Capacitor Android
         run: |
