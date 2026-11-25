@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Capacitor APK
 
 on:
   push:
@@ -11,12 +11,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup SDK
+      - name: Setup Android SDK
         run: |
           SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
           mkdir -p "$SDK/cmdline-tools"
@@ -26,14 +31,35 @@ jobs:
           yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses > /dev/null
           "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
+      - name: Prepare env & install dependencies
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          cp .env.example .env.local
+          if [ -n "$VITE_SUPABASE_URL" ]; then
+            sed -i "s|https://YOUR_PROJECT_REF.supabase.co|$VITE_SUPABASE_URL|g" .env.local
+          fi
+          if [ -n "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
+            sed -i "s|sb_publishable_REPLACE_WITH_PROJECT_PUBLISHABLE_KEY|$VITE_SUPABASE_PUBLISHABLE_KEY|g" .env.local
+          fi
+          npm ci --legacy-peer-deps
+
+      - name: Build web & sync Capacitor Android
+        run: |
+          npm run build
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+          npx cap sync android
+
       - name: Build Debug APK
         run: |
-          rm -rf BagaltiPro/build_backup_* || true
-          cd BagaltiPro
-          chmod +x gradlew 2>/dev/null || true
+          cd android
+          chmod +x gradlew
           ./gradlew assembleDebug
 
       - uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: "**/build/outputs/apk/debug/*.apk"
+          name: capacitor-app-debug
+          path: android/app/build/outputs/apk/debug/*.apk
