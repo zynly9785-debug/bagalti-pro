@@ -49,9 +49,9 @@ jobs:
         run: |
           npm run build
           if [ ! -d "android" ]; then
-            npx cap add android
+            npx --yes @capacitor/cli add android
           fi
-          npx cap sync android
+          npx --yes @capacitor/cli sync android
 
       - name: Build Debug APK
         run: |
