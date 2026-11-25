@@ -6,7 +6,7 @@
 import type { Product, User } from '../types/index.ts';
 import { checkItemExpiryStatus, formatCurrency } from './pureLogic.ts';
 
-export const APP_VERSION = '1.4.7';
+export const APP_VERSION = '1.4.6';
 export const OWNER_SUPPORT_PHONE = '+967778228995';
 export const OWNER_SUPPORT_WHATSAPP_DIGITS = '967778228995';
 export const OFFICIAL_APK_DOWNLOAD_URL =
