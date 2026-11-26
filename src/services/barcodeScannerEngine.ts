@@ -117,10 +117,48 @@ export function createConfiguredReader(scanIntervalMs = 190): BrowserMultiFormat
   });
 }
 
+async function ensureNativeCameraPermission(): Promise<boolean> {
+  try {
+    const cap = (window as unknown as {
+      Capacitor?: {
+        isNativePlatform?: () => boolean;
+        getPlatform?: () => string;
+      };
+    }).Capacitor;
+
+    if (!cap?.isNativePlatform || !cap.isNativePlatform()) {
+      return true;
+    }
+
+    const modName = '@capacitor/camera';
+    const cameraMod = await (new Function('p', 'return import(p)')(modName) as Promise<{
+      Camera?: {
+        checkPermissions?: () => Promise<{ camera?: string }>;
+        requestPermissions?: (opts?: { permissions?: string[] }) => Promise<{ camera?: string }>;
+      };
+    }>).catch(() => null);
+
+    const Camera = cameraMod?.Camera;
+    if (!Camera?.checkPermissions || !Camera?.requestPermissions) {
+      return true;
+    }
+
+    const status = await Camera.checkPermissions();
+    if (status?.camera === 'granted') {
+      return true;
+    }
+
+    const req = await Camera.requestPermissions({ permissions: ['camera'] });
+    return req?.camera === 'granted' || req?.camera === 'limited';
+  } catch {
+    return true;
+  }
+}
+
 function mapCameraErrorToArabic(error: unknown): string {
   const msg = error instanceof Error ? `${error.name} ${error.message}` : String(error || '');
   if (/NotAllowed|Permission|denied/i.test(msg)) {
-    return 'إذن الكاميرا مرفوض. اسمح للتطبيق بالوصول إلى الكاميرا من إعدادات الهاتف ثم أعد المحاولة.';
+    return 'تعذر الوصول إلى الكاميرا. تأكد من منح صلاحية الكاميرا للتطبيق من إعدادات الهاتف ثم أعد المحاولة.';
   }
   if (/NotFound|Requested device not found|no camera|DevicesNotFound/i.test(msg)) {
     return 'لم يتم العثور على كاميرا متصلة في هذا الجهاز. يمكنك إدخال الباركود يدوياً أو عبر ماسح خارجي.';
@@ -169,7 +207,6 @@ function enhanceVideoFrameToCanvas(video: HTMLVideoElement, canvas: HTMLCanvasEl
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   if (!vw || !vh) return false;
-  // Crop center region (84% width x 58% height) for sharper ROI contrast decode
   const sw = Math.max(160, Math.floor(vw * 0.84));
   const sh = Math.max(120, Math.floor(vh * 0.58));
   const sx = Math.floor((vw - sw) / 2);
@@ -200,6 +237,13 @@ export async function startUnifiedBarcodeScanner(
     const errMsg = 'هذا المتصفح/النظام لا يدعم الوصول المباشر إلى الكاميرا. يمكنك استخدام الإدخال اليدوي أو ماسح خارجي.';
     onCameraError?.(errMsg);
     throw new Error(errMsg);
+  }
+
+  const permitted = await ensureNativeCameraPermission();
+  if (!permitted) {
+    const permMsg = 'تعذر الوصول إلى الكاميرا. تأكد من منح صلاحية الكاميرا للتطبيق من إعدادات الهاتف ثم أعد المحاولة.';
+    onCameraError?.(permMsg);
+    throw new Error(permMsg);
   }
 
   let stopped = false;
@@ -289,7 +333,6 @@ export async function startUnifiedBarcodeScanner(
     await applyOptimalTrackConstraints(videoElement);
     onReady?.();
 
-    // Native hardware-accelerated dual scan path if supported by device WebView/Chromium
     if (nativeDetector) {
       nativeTimer = window.setInterval(() => {
         if (stopped || videoElement.readyState < 2) return;
@@ -303,7 +346,6 @@ export async function startUnifiedBarcodeScanner(
       }, 240);
     }
 
-    // Contrast-enhanced ROI canvas retry for low-contrast / small / weak-camera barcodes
     enhanceTimer = window.setInterval(() => {
       if (stopped || videoElement.readyState < 2) return;
       try {
