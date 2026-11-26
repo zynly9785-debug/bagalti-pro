@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -28,7 +28,7 @@ jobs:
           curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/sdk.zip
           unzip -q /tmp/sdk.zip -d /tmp/sdk_dir
           mv /tmp/sdk_dir/cmdline-tools "$SDK/cmdline-tools/latest"
-          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses > /dev/null
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" --licenses > /dev/null || true
           "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Prepare env & install dependencies
@@ -37,12 +37,10 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           cp .env.example .env.local
-          if [ -n "$VITE_SUPABASE_URL" ]; then
-            sed -i "s|https://YOUR_PROJECT_REF.supabase.co|$VITE_SUPABASE_URL|g" .env.local
-          fi
-          if [ -n "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
-            sed -i "s|sb_publishable_REPLACE_WITH_PROJECT_PUBLISHABLE_KEY|$VITE_SUPABASE_PUBLISHABLE_KEY|g" .env.local
-          fi
+          cat <<EOF > .env.local
+          VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+          VITE_SUPABASE_PUBLISHABLE_KEY=${VITE_SUPABASE_PUBLISHABLE_KEY}
+          EOF
           npm install --legacy-peer-deps
           npm install --no-save --legacy-peer-deps @capacitor/android@^8.6.2 @capacitor/cli@^8.6.2
 
@@ -62,5 +60,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: capacitor-app-debug
+          name: Capacitor-Debug-APK
           path: android/app/build/outputs/apk/debug/*.apk
